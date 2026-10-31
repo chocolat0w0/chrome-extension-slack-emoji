@@ -1,3 +1,4 @@
+import {FONT_PRESETS} from '../emoji/fonts.js';
 import {renderEmoji} from '../emoji/render.js';
 import {graphemes,validate} from './model.js';
 export function mountEditor(app,{onGenerate=null,onDraft=()=>{},initial={}}={}) {
@@ -8,6 +9,8 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <label class="label" for="text">文字</label>
 <textarea id="text" rows="2" aria-describedby="text-help counter">ありがとう</textarea>
 <div class="helper"><span id="text-help">4行まで・1行12文字まで</span><output id="counter"></output></div>
+<label class="label font-label" for="font">フォント</label>
+<select id="font"></select>
 <fieldset><legend class="label">色</legend>
 <div class="colors"><label>文字 <input id="foreground" type="color" value="#176b50"></label><label>背景 <input id="background" type="color" value="#ffedb5"></label></div>
 <div class="swatches" aria-label="文字色プリセット"></div>
@@ -20,26 +23,31 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <span class="label">プレビュー</span>
 <div class="stage checker"><img id="large" alt="作成した絵文字のプレビュー"></div>
 <div class="samples"><div><span>明</span><div class="sample light"><img class="small" alt="明るい背景での絵文字"></div></div><div><span>暗</span><div class="sample dark"><img class="small" alt="暗い背景での絵文字"></div></div></div>
+<p id="loading" class="helper" role="status"></p>
 <p id="size" class="helper" aria-live="polite"></p>
 <button id="generate" type="button">PNGを生成</button>
 <output id="result" aria-live="polite"></output>
 </aside></section>`;
 const el=id=>app.querySelector('#'+id);
+for(const preset of FONT_PRESETS){const option=document.createElement('option');option.value=preset.id;option.textContent=preset.label;el('font').append(option);}
+el('font').value='gothic-bold';
 for(const [color,label] of [['#176b50','緑'],['#d44735','赤'],['#252b38','墨'],['#ffffff','白'],['#d98a00','黄']]){
  const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;update();});app.querySelector('.swatches').append(button);
 }
-for(const id of ['text','foreground','background','name'])if(initial[id]!==undefined)el(id).value=initial[id];
+for(const id of ['text','foreground','background','name','font'])if(initial[id]!==undefined)el(id).value=initial[id];
 if(initial.transparent!==undefined)el('transparent').checked=initial.transparent;
 if(onGenerate)el('generate').textContent='登録欄に反映';
 let revision=0, current=null, url=null;
-function values(){return {text:el('text').value,foreground:el('foreground').value,background:el('background').value,transparent:el('transparent').checked};}
+function values(){return {font:el('font').value,text:el('text').value,foreground:el('foreground').value,background:el('background').value,transparent:el('transparent').checked};}
 async function update(){
  const ticket=++revision;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
  onDraft({...values(),name:el('name').value});
  el('background').disabled=el('transparent').checked;
  const lines=el('text').value.split('\n');el('counter').textContent=`${lines.length}行 / 最長${Math.max(...lines.map(s=>graphemes(s).length))}文字`;
  const errors=validate(el('text').value);el('error').textContent=errors.join(' ');
- if(errors.length){app.querySelectorAll('img').forEach(img=>img.removeAttribute('src'));el('size').textContent='';return;}
+ if(errors.length){el('loading').textContent='';app.querySelectorAll('img').forEach(img=>img.removeAttribute('src'));el('size').textContent='';return;}
+ el('loading').textContent='フォントを読み込み中…';
+ app.querySelectorAll('img').forEach(img=>img.removeAttribute('src'));el('size').textContent='';
  try{
   const image=await renderEmoji(values());if(disposed||ticket!==revision)return;
   if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(image.blob);
@@ -47,6 +55,7 @@ async function update(){
   el('size').textContent=`128 × 128 px · ${image.blob.size.toLocaleString()} bytes`;
   el('generate').disabled=busy;
  }catch(error){if(!disposed&&ticket===revision)el('error').textContent=error.message;}
+ finally{if(!disposed&&ticket===revision)el('loading').textContent='';}
 }
 el('editor').addEventListener('submit',e=>e.preventDefault());
 el('editor').addEventListener('input',update);

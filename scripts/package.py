@@ -6,14 +6,14 @@ from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 
 root = Path(__file__).resolve().parent.parent
 dist = root / 'dist'
-allowed = {'manifest.json', 'content.js'}
+allowed = {'manifest.json', 'content.js', 'font-worker.js'}
 actual = {p.name for p in dist.iterdir()}
 if actual != allowed:
     raise SystemExit(f'Unexpected dist contents: {sorted(actual)}')
 manifest = json.loads((dist / 'manifest.json').read_text())
 if manifest != json.loads((root / 'manifest.json').read_text()):
     raise SystemExit('Manifest differs from source; rebuild first')
-if manifest.get('permissions') or manifest.get('host_permissions') or manifest.get('background'):
+if manifest.get('permissions') or manifest.get('host_permissions') != ['https://fonts.googleapis.com/*', 'https://fonts.gstatic.com/*'] or manifest.get('background') != {'service_worker': 'font-worker.js'}:
     raise SystemExit('Unexpected extension permissions/background')
 assert manifest['content_scripts'][0]['world'] == 'ISOLATED'
 assert all(pattern.startswith('https://*.slack.com/customize/emoji') for pattern in manifest['content_scripts'][0]['matches'])

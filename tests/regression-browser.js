@@ -2,7 +2,7 @@ import {mountEditor} from '../src/editor/view.js';
 import {findSlackForm,transferEmoji} from '../src/slack/adapter.js';
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 const check=(value,message)=>{if(!value)throw Error(message);};
-async function until(fn){for(let i=0;i<80;i++){if(fn())return;await pause(25);}throw Error('Timed out waiting for UI');}
+async function until(fn){for(let i=0;i<1600;i++){if(fn())return;await pause(25);}throw Error('Timed out waiting for UI');}
 export async function regression(){
  const results=[];const area=document.createElement('section');document.body.append(area);let dispose;
  try{

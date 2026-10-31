@@ -25,16 +25,105 @@ function fitText(texts, measure) {
  throw new Error('文字を描画領域に配置できませんでした。');
 }
 
-async function renderEmoji({text,foreground,background,transparent}) {
+// Google Fonts are fetched on use; aliases prevent accidental local-font substitution.
+const FONT_PRESETS = [
+ {id:'gothic',label:'ゴシック体',weight:700,stroke:0.025,googleFamily:'Noto Sans JP',family:'"SlackEmojiWebGothic"'},
+ {id:'gothic-bold',label:'太いゴシック体',weight:900,stroke:0.055,googleFamily:'Noto Sans JP',family:'"SlackEmojiWebGothicBold"'},
+ {id:'mincho',label:'明朝体',weight:900,stroke:0.025,googleFamily:'Noto Serif JP',family:'"SlackEmojiWebMincho"'},
+ {id:'rounded',label:'丸文字',weight:900,stroke:0.025,googleFamily:'Zen Maru Gothic',family:'"SlackEmojiWebMaru"'}
+];
+function canvasFont(id='gothic-bold',size) {
+ const preset=FONT_PRESETS.find(p=>p.id===id);
+ if(!preset)throw new Error('フォントを選び直してください。');
+ return `${preset.weight} ${size}px ${preset.family}`;
+}
+
+function fontStrokeWidth(id='gothic-bold',size) {
+ const preset=FONT_PRESETS.find(p=>p.id===id);
+ if(!preset)throw new Error('フォントを選び直してください。');
+ return Math.max(0.4,size*preset.stroke);
+}
+
+const styleCache=new Map();
+function fontCssUrl(id){
+ const p=FONT_PRESETS.find(p=>p.id===id);if(!p)throw Error('Unknown font');
+ return `https://fonts.googleapis.com/css2?family=${encodeURIComponent(p.googleFamily+':wght@'+p.weight)}&display=block`;
+}
+function rangeContains(range,point){
+ return range.split(',').some(part=>{
+  const value=part.trim().replace(/^U\+/i,'');
+  const pair=value.includes('?')?[value.replaceAll('?','0'),value.replaceAll('?','F')]:value.split('-');
+  return point>=parseInt(pair[0],16)&&point<=parseInt(pair[1]??pair[0],16);
+ });
+}
+function parseFontCss(css){
+ const entries=[...css.matchAll(/@font-face\s*\{([^}]+)\}/g)].map(([,body])=>{
+  const src=body.match(/src:\s*url\(['"]?([^\s)'";]+)['"]?\)/),range=body.match(/unicode-range:\s*([^;]+);/);
+  if(!src)throw Error('Invalid font stylesheet');const url=new URL(src[1]);
+  if(url.protocol!=='https:'||url.hostname!=='fonts.gstatic.com'||url.port||url.username||url.password||!url.pathname.startsWith('/s/'))throw Error('Unexpected font URL');
+  const value=range?.[1].trim()??'U+0-10FFFF';
+  if(!/^U\+[0-9A-F?]+(?:-[0-9A-F]+)?(?:\s*,\s*U\+[0-9A-F?]+(?:-[0-9A-F]+)?)*$/i.test(value))throw Error('Invalid unicode range');
+  return {url:url.href,range:value};
+ });
+ if(!entries.length||entries.length>300)throw Error('Invalid font stylesheet');return entries;
+}
+async function fontFetch(url){
+ const response=await fetch(url,{credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',signal:AbortSignal.timeout(15000)});
+ if(!response.ok)throw Error('Font request failed: '+response.status);return response;
+}
+async function fetchFontStyles(id){
+ if(!styleCache.has(id)){
+  const promise=fontFetch(fontCssUrl(id)).then(r=>r.text()).then(parseFontCss).catch(e=>{styleCache.delete(id);throw e;});styleCache.set(id,promise);
+ }return styleCache.get(id);
+}
+async function fetchFontBytes(id,index){
+ const styles=await fetchFontStyles(id);if(!Number.isInteger(index)||!styles[index])throw Error('Unknown font subset');
+ const buffer=await (await fontFetch(styles[index].url)).arrayBuffer();if(buffer.byteLength>8*1024*1024)throw Error('Font too large');return buffer;
+}
+
+const loadedSubsets=new Map();
+async function fontTransport(type,id,index){
+ if(typeof chrome!=='undefined'&&chrome.runtime?.id){
+  const result=await chrome.runtime.sendMessage({type,id,index});
+  if(!result?.ok)throw Error(result?.error??'Font service unavailable');
+  return type==='font-styles'?result.styles:Uint8Array.from(atob(result.base64),c=>c.charCodeAt(0)).buffer;
+ }
+ return type==='font-styles'?fetchFontStyles(id):fetchFontBytes(id,index);
+}
+async function ensureWebFont(id,text){
+ const preset=FONT_PRESETS.find(p=>p.id===id);if(!preset)throw Error('フォントを選び直してください。');
+ try{
+  const styles=await fontTransport('font-styles',id);
+  const points=[...new Set([...text].filter(c=>!/[\r\n\t]/.test(c)).map(c=>c.codePointAt(0)))];
+  if(points.some(p=>!styles.some(s=>rangeContains(s.range,p))))throw Error('Unsupported character');
+  const needed=styles.map((s,index)=>({...s,index})).filter(s=>points.some(p=>rangeContains(s.range,p)));
+  await Promise.all(needed.map(s=>{
+   const key=id+':'+s.index;
+   if(!loadedSubsets.has(key)){
+    const promise=(async()=>{
+     const buffer=await fontTransport('font-bytes',id,s.index);
+     const face=new FontFace(preset.family.replaceAll('"',''),buffer,{weight:String(preset.weight),style:'normal',unicodeRange:s.range});
+     await face.load();document.fonts.add(face);return face;
+    })().catch(e=>{loadedSubsets.delete(key);throw e;});loadedSubsets.set(key,promise);
+   }return loadedSubsets.get(key);
+  }));
+ }catch{throw Error('フォントを取得できませんでした。通信環境や入力文字を確認して、再度お試しください。');}
+}
+
+async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic-bold'}) {
  const errors=validate(text); if(errors.length) throw new Error(errors.join(' '));
- await document.fonts.ready;
+ await ensureWebFont(fontId,text);
  const canvas=document.createElement('canvas'); canvas.width=canvas.height=128;
  const ctx=canvas.getContext('2d'); if(!ctx) throw new Error('Canvasを利用できません。');
- const font=size=>`900 ${size}px "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif`;
- const fit=fitText(text.replace(/\r\n?/g,'\n').split('\n'),(line,size)=>{ctx.font=font(size);return ctx.measureText(line);});
+ const font=size=>canvasFont(fontId,size);
+ const fit=fitText(text.replace(/\r\n?/g,'\n').split('\n'),(line,size)=>{
+  ctx.font=font(size);const m=ctx.measureText(line),pad=fontStrokeWidth(fontId,size)/2;
+  return {width:m.width,actualBoundingBoxLeft:m.actualBoundingBoxLeft+pad,actualBoundingBoxRight:m.actualBoundingBoxRight+pad,actualBoundingBoxAscent:(m.actualBoundingBoxAscent||size*.8)+pad,actualBoundingBoxDescent:(m.actualBoundingBoxDescent||size*.2)+pad};
+ });
  if(!transparent){ctx.fillStyle=background;ctx.fillRect(0,0,128,128);}
  ctx.font=font(fit.size);ctx.fillStyle=foreground;ctx.textBaseline='alphabetic';
- fit.lines.forEach(line=>ctx.fillText(line.text,line.x,line.y));
+ ctx.strokeStyle=foreground;ctx.lineWidth=fontStrokeWidth(fontId,fit.size);ctx.lineJoin='round';
+ fit.lines.forEach(line=>{ctx.strokeText(line.text,line.x,line.y);ctx.fillText(line.text,line.x,line.y);});
  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
  if(!blob) throw new Error('PNGを生成できませんでした。');
  if(blob.size>=128000) throw new Error('画像が128,000バイト以上です。');
@@ -49,6 +138,8 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <label class="label" for="text">文字</label>
 <textarea id="text" rows="2" aria-describedby="text-help counter">ありがとう</textarea>
 <div class="helper"><span id="text-help">4行まで・1行12文字まで</span><output id="counter"></output></div>
+<label class="label font-label" for="font">フォント</label>
+<select id="font"></select>
 <fieldset><legend class="label">色</legend>
 <div class="colors"><label>文字 <input id="foreground" type="color" value="#176b50"></label><label>背景 <input id="background" type="color" value="#ffedb5"></label></div>
 <div class="swatches" aria-label="文字色プリセット"></div>
@@ -61,26 +152,31 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <span class="label">プレビュー</span>
 <div class="stage checker"><img id="large" alt="作成した絵文字のプレビュー"></div>
 <div class="samples"><div><span>明</span><div class="sample light"><img class="small" alt="明るい背景での絵文字"></div></div><div><span>暗</span><div class="sample dark"><img class="small" alt="暗い背景での絵文字"></div></div></div>
+<p id="loading" class="helper" role="status"></p>
 <p id="size" class="helper" aria-live="polite"></p>
 <button id="generate" type="button">PNGを生成</button>
 <output id="result" aria-live="polite"></output>
 </aside></section>`;
 const el=id=>app.querySelector('#'+id);
+for(const preset of FONT_PRESETS){const option=document.createElement('option');option.value=preset.id;option.textContent=preset.label;el('font').append(option);}
+el('font').value='gothic-bold';
 for(const [color,label] of [['#176b50','緑'],['#d44735','赤'],['#252b38','墨'],['#ffffff','白'],['#d98a00','黄']]){
  const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;update();});app.querySelector('.swatches').append(button);
 }
-for(const id of ['text','foreground','background','name'])if(initial[id]!==undefined)el(id).value=initial[id];
+for(const id of ['text','foreground','background','name','font'])if(initial[id]!==undefined)el(id).value=initial[id];
 if(initial.transparent!==undefined)el('transparent').checked=initial.transparent;
 if(onGenerate)el('generate').textContent='登録欄に反映';
 let revision=0, current=null, url=null;
-function values(){return {text:el('text').value,foreground:el('foreground').value,background:el('background').value,transparent:el('transparent').checked};}
+function values(){return {font:el('font').value,text:el('text').value,foreground:el('foreground').value,background:el('background').value,transparent:el('transparent').checked};}
 async function update(){
  const ticket=++revision;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
  onDraft({...values(),name:el('name').value});
  el('background').disabled=el('transparent').checked;
  const lines=el('text').value.split('\n');el('counter').textContent=`${lines.length}行 / 最長${Math.max(...lines.map(s=>graphemes(s).length))}文字`;
  const errors=validate(el('text').value);el('error').textContent=errors.join(' ');
- if(errors.length){app.querySelectorAll('img').forEach(img=>img.removeAttribute('src'));el('size').textContent='';return;}
+ if(errors.length){el('loading').textContent='';app.querySelectorAll('img').forEach(img=>img.removeAttribute('src'));el('size').textContent='';return;}
+ el('loading').textContent='フォントを読み込み中…';
+ app.querySelectorAll('img').forEach(img=>img.removeAttribute('src'));el('size').textContent='';
  try{
   const image=await renderEmoji(values());if(disposed||ticket!==revision)return;
   if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(image.blob);
@@ -88,6 +184,7 @@ async function update(){
   el('size').textContent=`128 × 128 px · ${image.blob.size.toLocaleString()} bytes`;
   el('generate').disabled=busy;
  }catch(error){if(!disposed&&ticket===revision)el('error').textContent=error.message;}
+ finally{if(!disposed&&ticket===revision)el('loading').textContent='';}
 }
 el('editor').addEventListener('submit',e=>e.preventDefault());
 el('editor').addEventListener('input',update);
@@ -161,5 +258,5 @@ function startIntegration(scope=document,styles='') {
  const stop=()=>{observer.disconnect();clear();};return stop;
 }
 
-if(/^\/customize\/emoji\/?$/.test(location.pathname)){const stop=startIntegration(document,":root{font-family:\"Hiragino Kaku Gothic ProN\",\"Yu Gothic\",sans-serif;color:#26352f;background:#f7f7f4;font-size:13px}*{box-sizing:border-box}body{margin:0}main{max-width:560px;padding:20px;margin:0 auto}h1{font-size:16px;margin:0 0 16px;font-weight:600}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:24px;align-items:start}.label{display:block;font-weight:600;font-size:12px;margin-bottom:6px}textarea,input[type=text]{font:inherit;width:100%;border:1px solid #b9c1bb;border-radius:4px;padding:7px 9px;background:#fff;color:inherit}textarea{resize:vertical;min-height:58px;font-size:16px;line-height:1.4}textarea:focus,input:focus,button:focus-visible{outline:2px solid #176b50;outline-offset:2px}.helper{font-size:10px;color:#68746c;line-height:1.6}.helper:has(span){display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px}.helper output{white-space:nowrap}fieldset{border:0;padding:0;margin:16px 0}.colors{display:flex;gap:16px}.colors label{display:flex;align-items:center;gap:6px;font-size:12px}input[type=color]{width:30px;height:28px;padding:2px;border:1px solid #b9c1bb;background:none;cursor:pointer}.swatches{display:flex;gap:8px;margin:10px 0}.swatches button{width:20px;height:20px;border:1px solid #bbc2ba;border-radius:50%;cursor:pointer}.check{font-size:12px;display:flex;align-items:center;gap:6px}input[type=checkbox]{accent-color:#176b50}#error{font-size:11px;color:#aa3128;margin:8px 0}#error:empty{display:none}.stage{width:96px;height:96px;display:grid;place-items:center;border:1px solid #cdd4c4;border-radius:3px}.checker{background-color:#fff;background-image:conic-gradient(#e8eae4 25%,transparent 0 50%,#e8eae4 0 75%,transparent 0);background-size:12px 12px}#large{width:80px;height:80px;object-fit:contain}img:not([src]){visibility:hidden}.samples{display:flex;gap:8px;margin-top:8px}.samples>div>span{font-size:10px;color:#68746c}.sample{display:grid;place-items:center;margin-top:3px;width:36px;height:32px;border-radius:3px}.light{background:white;border:1px solid #e0e3dd}.dark{background:#24282d}.small{width:22px;height:22px}#size{margin:8px 0}#generate{width:100%;border:0;border-radius:4px;background:#176b50;color:white;padding:9px;font:inherit;cursor:pointer}#generate:disabled{opacity:.4;cursor:default}#result{display:block;font-size:11px;line-height:1.6;margin-top:8px;overflow-wrap:anywhere}@media(max-width:400px){main{padding:12px}.workspace{grid-template-columns:minmax(0,1fr) 110px;gap:12px}}\n\n:host{display:block;color:#26352f;font:13px \"Hiragino Kaku Gothic ProN\",sans-serif;background:#f7f7f4;border:1px solid #d4d9d4;border-radius:4px;margin:12px 0}main{margin:0;padding:16px;max-width:none}" );addEventListener('pagehide',stop,{once:true});}
+if(/^\/customize\/emoji\/?$/.test(location.pathname)){const stop=startIntegration(document,":root{font-family:\"Hiragino Kaku Gothic ProN\",\"Yu Gothic\",sans-serif;color:#26352f;background:#f7f7f4;font-size:13px}*{box-sizing:border-box}body{margin:0}main{max-width:560px;padding:20px;margin:0 auto}h1{font-size:16px;margin:0 0 16px;font-weight:600}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:24px;align-items:start}.label{display:block;font-weight:600;font-size:12px;margin-bottom:6px}textarea,input[type=text],select{font:inherit;width:100%;border:1px solid #b9c1bb;border-radius:4px;padding:7px 9px;background:#fff;color:inherit}textarea{resize:vertical;min-height:58px;font-size:16px;line-height:1.4}textarea:focus,input:focus,select:focus,button:focus-visible{outline:2px solid #176b50;outline-offset:2px}.helper{font-size:10px;color:#68746c;line-height:1.6}.helper:has(span){display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px}.helper output{white-space:nowrap}fieldset{border:0;padding:0;margin:16px 0}.colors{display:flex;gap:16px}.colors label{display:flex;align-items:center;gap:6px;font-size:12px}input[type=color]{width:30px;height:28px;padding:2px;border:1px solid #b9c1bb;background:none;cursor:pointer}.swatches{display:flex;gap:8px;margin:10px 0}.swatches button{width:20px;height:20px;border:1px solid #bbc2ba;border-radius:50%;cursor:pointer}.check{font-size:12px;display:flex;align-items:center;gap:6px}input[type=checkbox]{accent-color:#176b50}#error{font-size:11px;color:#aa3128;margin:8px 0}#error:empty{display:none}.stage{width:96px;height:96px;display:grid;place-items:center;border:1px solid #cdd4c4;border-radius:3px}.checker{background-color:#fff;background-image:conic-gradient(#e8eae4 25%,transparent 0 50%,#e8eae4 0 75%,transparent 0);background-size:12px 12px}#large{width:80px;height:80px;object-fit:contain}img:not([src]){visibility:hidden}.samples{display:flex;gap:8px;margin-top:8px}.samples>div>span{font-size:10px;color:#68746c}.sample{display:grid;place-items:center;margin-top:3px;width:36px;height:32px;border-radius:3px}.light{background:white;border:1px solid #e0e3dd}.dark{background:#24282d}.small{width:22px;height:22px}#size{margin:8px 0}#generate{width:100%;border:0;border-radius:4px;background:#176b50;color:white;padding:9px;font:inherit;cursor:pointer}#generate:disabled{opacity:.4;cursor:default}#result{display:block;font-size:11px;line-height:1.6;margin-top:8px;overflow-wrap:anywhere}@media(max-width:400px){main{padding:12px}.workspace{grid-template-columns:minmax(0,1fr) 110px;gap:12px}}\n\n.font-label{margin-top:12px}select{font-size:12px;padding:7px 9px}\n\n:host{display:block;color:#26352f;font:13px \"Hiragino Kaku Gothic ProN\",sans-serif;background:#f7f7f4;border:1px solid #d4d9d4;border-radius:4px;margin:12px 0}main{margin:0;padding:16px;max-width:none}" );addEventListener('pagehide',stop,{once:true});}
 })();
