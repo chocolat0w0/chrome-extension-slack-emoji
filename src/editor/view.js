@@ -1,0 +1,70 @@
+import {renderEmoji} from '../emoji/render.js';
+import {graphemes,validate} from './model.js';
+export function mountEditor(app,{onGenerate=null,onDraft=()=>{},initial={}}={}) {
+let disposed=false,busy=false,reflected=false;
+app.innerHTML=`<h1>文字絵文字を作成</h1>
+<section class="workspace">
+<form id="editor">
+<label class="label" for="text">文字</label>
+<textarea id="text" rows="2" aria-describedby="text-help counter">ありがとう</textarea>
+<div class="helper"><span id="text-help">4行まで・1行12文字まで</span><output id="counter"></output></div>
+<fieldset><legend class="label">色</legend>
+<div class="colors"><label>文字 <input id="foreground" type="color" value="#176b50"></label><label>背景 <input id="background" type="color" value="#ffedb5"></label></div>
+<div class="swatches" aria-label="文字色プリセット"></div>
+<label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label></fieldset>
+<label class="label" for="name">Slackでの名前</label>
+<input id="name" type="text" placeholder="例：arigatou" autocomplete="off">
+<p id="error" role="alert"></p>
+</form>
+<aside class="preview">
+<span class="label">プレビュー</span>
+<div class="stage checker"><img id="large" alt="作成した絵文字のプレビュー"></div>
+<div class="samples"><div><span>明</span><div class="sample light"><img class="small" alt="明るい背景での絵文字"></div></div><div><span>暗</span><div class="sample dark"><img class="small" alt="暗い背景での絵文字"></div></div></div>
+<p id="size" class="helper" aria-live="polite"></p>
+<button id="generate" type="button">PNGを生成</button>
+<output id="result" aria-live="polite"></output>
+</aside></section>`;
+const el=id=>app.querySelector('#'+id);
+for(const [color,label] of [['#176b50','緑'],['#d44735','赤'],['#252b38','墨'],['#ffffff','白'],['#d98a00','黄']]){
+ const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;update();});app.querySelector('.swatches').append(button);
+}
+for(const id of ['text','foreground','background','name'])if(initial[id]!==undefined)el(id).value=initial[id];
+if(initial.transparent!==undefined)el('transparent').checked=initial.transparent;
+if(onGenerate)el('generate').textContent='登録欄に反映';
+let revision=0, current=null, url=null;
+function values(){return {text:el('text').value,foreground:el('foreground').value,background:el('background').value,transparent:el('transparent').checked};}
+async function update(){
+ const ticket=++revision;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
+ onDraft({...values(),name:el('name').value});
+ el('background').disabled=el('transparent').checked;
+ const lines=el('text').value.split('\n');el('counter').textContent=`${lines.length}行 / 最長${Math.max(...lines.map(s=>graphemes(s).length))}文字`;
+ const errors=validate(el('text').value);el('error').textContent=errors.join(' ');
+ if(errors.length){app.querySelectorAll('img').forEach(img=>img.removeAttribute('src'));el('size').textContent='';return;}
+ try{
+  const image=await renderEmoji(values());if(disposed||ticket!==revision)return;
+  if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(image.blob);
+  app.querySelectorAll('img').forEach(img=>img.src=url);current=image.blob;
+  el('size').textContent=`128 × 128 px · ${image.blob.size.toLocaleString()} bytes`;
+  el('generate').disabled=busy;
+ }catch(error){if(!disposed&&ticket===revision)el('error').textContent=error.message;}
+}
+el('editor').addEventListener('submit',e=>e.preventDefault());
+el('editor').addEventListener('input',update);
+el('generate').addEventListener('click',async ()=>{
+ if(!current||busy||disposed)return;
+ const name=el('name').value.trim();if(!name){el('result').textContent='Slackでの名前を入力してください。';el('name').focus();return;}
+ const file=new File([current],`${name}.png`,{type:'image/png'});
+ const ticket=revision;
+ if(onGenerate){
+  busy=true;el('generate').disabled=true;el('result').textContent='反映中…';
+  try{await onGenerate(file,name);reflected=true;if(!disposed)el('result').textContent=ticket===revision?'登録欄に反映済み。Slackの「保存する」で登録してください。':'変更を登録欄に反映してください。';}
+  catch(error){if(!disposed)el('result').textContent=error.message;}
+  finally{busy=false;if(!disposed)el('generate').disabled=!current;}
+ }else{
+  el('result').textContent=`「${file.name}」を生成しました。${file.size.toLocaleString()} bytes`;
+  app.dispatchEvent(new CustomEvent('emoji-generated',{detail:{file,name}}));
+ }
+});
+update();
+return ()=>{disposed=true;revision++;if(url)URL.revokeObjectURL(url);app.replaceChildren();};
+}

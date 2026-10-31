@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Slack Emoji Upload Spike",
+  "version": "0.0.1",
+  "description": "Step 2: generate a test PNG and fill Slack's emoji form without a download.",
+  "content_scripts": [{
+    "matches": ["https://*.slack.com/customize/emoji", "https://*.slack.com/customize/emoji?*", "https://*.slack.com/customize/emoji/", "https://*.slack.com/customize/emoji/?*"],
+    "js": ["content.js"],
+    "world": "ISOLATED",
+    "run_at": "document_idle"
+  }]
+}
