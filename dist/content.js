@@ -275,11 +275,11 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <select id="font"></select>
 <label class="label font-label" for="align">文字揃え</label>
 <select id="align"><option value="center">中央</option><option value="left">左</option><option value="right">右</option></select>
+<label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばして埋める</label>
 <label class="label font-label" for="frame">フレーム</label>
 <select id="frame"><option value="none">なし</option><option value="circle">丸囲み</option><option value="double-circle">二重丸</option><option value="rays">集中線</option></select>
 <label class="label font-label" for="animation">アニメーション</label>
 <select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（GIF）</option><option value="shake">ぶるぶる（GIF）</option><option value="pop">ポップ（GIF）</option><option value="blink">点滅（GIF）</option><option value="blink-fast">点滅・速い（GIF）</option></select>
-<label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばして埋める</label>
 <fieldset><legend class="label">色</legend>
 <div class="colors">
 <div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#3ab0c7"><input id="foregroundHex" type="text" value="#3ab0c7" aria-label="文字色のHEXコード" placeholder="#3ab0c7" spellcheck="false" autocomplete="off"></div></div>
