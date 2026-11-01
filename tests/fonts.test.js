@@ -2,11 +2,9 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {FONT_PRESETS,canvasFont,fontStrokeWidth} from '../src/emoji/fonts.js';
 test('offers requested styles and defaults to bold Gothic',()=>{
- assert.deepEqual(FONT_PRESETS.map(p=>p.label),['ゴシック体','太いゴシック体','明朝体','丸文字','ポップ']);
+ assert.deepEqual(FONT_PRESETS.map(p=>p.label),['ゴシック体','太いゴシック体','明朝体','丸文字']);
  assert.equal(FONT_PRESETS.find(p=>p.id==='rounded').googleFamily,'M PLUS Rounded 1c');
  assert.equal(FONT_PRESETS.find(p=>p.id==='rounded').weight,900);
- assert.equal(FONT_PRESETS.find(p=>p.id==='pop').googleFamily,'Mochiy Pop One');
- assert.equal(FONT_PRESETS.find(p=>p.id==='pop').weight,400);
  assert.equal(canvasFont(undefined,32),canvasFont('gothic-bold',32));
  assert.match(canvasFont('gothic',32),/^700 32px/);
  assert.match(canvasFont('gothic-bold',32),/^900 32px/);
