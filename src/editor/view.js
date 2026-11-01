@@ -37,7 +37,7 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 const el=id=>app.querySelector('#'+id);
 for(const preset of FONT_PRESETS){const option=document.createElement('option');option.value=preset.id;option.textContent=preset.label;el('font').append(option);}
 el('font').value='gothic-bold';
-for(const [color,label] of [['#176b50','緑'],['#d44735','赤'],['#252b38','墨'],['#ffffff','白'],['#d98a00','黄']]){
+for(const [color,label] of [['#176b50','緑'],['#ff0000','赤'],['#1111ff','青'],['#3ab0c7','水色'],['#ec71a1','ピンク'],['#00bb00','明るい緑'],['#252b38','墨'],['#ffffff','白'],['#d98a00','黄']]){
  const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;el('foregroundHex').value=color;update();});app.querySelector('.swatches').append(button);
 }
 for(const id of ['text','foreground','background','name','font','align'])if(initial[id]!==undefined)el(id).value=initial[id];

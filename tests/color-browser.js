@@ -15,6 +15,9 @@ export async function verifyColors(){
   input('foregroundHex','#12');check(el('generate').disabled&&el('foregroundHex').getAttribute('aria-invalid')==='true'&&!el('large').hasAttribute('src'),'invalid color blocked');
   input('foregroundHex','f80');await wait(()=>!el('generate').disabled);check(el('foreground').value==='#ff8800','short hex');
   app.querySelector('[aria-label="文字色を緑にする"]').click();await wait(()=>!el('generate').disabled);check(el('foregroundHex').value==='#176b50','preset sync');
+  for(const [label,color] of [['赤','#ff0000'],['青','#1111ff'],['水色','#3ab0c7'],['ピンク','#ec71a1'],['明るい緑','#00bb00']]){
+   const button=app.querySelector(`[aria-label="文字色を${label}にする"]`);check(!!button,`missing preset: ${label}`);button.click();await wait(()=>!el('generate').disabled);check(el('foregroundHex').value===color&&el('foreground').value===color,`preset sync: ${label}`);
+  }
   input('foreground','#2456ab');await wait(()=>!el('generate').disabled);check(el('foregroundHex').value==='#2456ab','picker to hex');
   el('transparent').checked=true;el('transparent').dispatchEvent(new Event('input',{bubbles:true}));await wait(()=>!el('generate').disabled);check(el('backgroundHex').disabled&&el('backgroundHex').value==='123456','transparent preserves background');
  }finally{dispose();app.remove();}
