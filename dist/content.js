@@ -15,7 +15,7 @@ function normalizeHex(value){
  return /^[0-9a-f]{6}$/i.test(hex)?'#'+hex.toLowerCase():null;
 }
 
-function fitText(texts, measure, align='center') {
+function fitText(texts, measure, align='center',area={x:0,y:0,width:128,height:128}) {
  if(!['center','left','right'].includes(align))throw Error('文字揃えを選び直してください。');
  // Each line uses its actual ink bounds, not only advance width.
  for(let size=128;size>=1;size--) {
@@ -24,9 +24,9 @@ function fitText(texts, measure, align='center') {
    return {text,left:m.actualBoundingBoxLeft??0,right:m.actualBoundingBoxRight??m.width,ascent:m.actualBoundingBoxAscent||size*.8,descent:m.actualBoundingBoxDescent||size*.2};
   });
   const gap=size*.12, height=metrics.reduce((n,m)=>n+m.ascent+m.descent,0)+gap*(texts.length-1);
-  if(height>128 || metrics.some(m=>m.left+m.right>128)) continue;
-  let top=(128-height)/2;
-  return {size,lines:metrics.map(m=>{const line={...m,x:align==='left'?m.left:align==='right'?128-m.right:(128-m.left-m.right)/2+m.left,y:top+m.ascent};top+=m.ascent+m.descent+gap;return line;})};
+  if(height>area.height || metrics.some(m=>m.left+m.right>area.width)) continue;
+  let top=area.y+(area.height-height)/2;
+  return {size,lines:metrics.map(m=>{const line={...m,x:area.x+(align==='left'?m.left:align==='right'?area.width-m.right:(area.width-m.left-m.right)/2+m.left),y:top+m.ascent};top+=m.ascent+m.descent+gap;return line;})};
  }
  throw new Error('文字を描画領域に配置できませんでした。');
 }
@@ -179,9 +179,39 @@ function renderBounce(layer,{foreground,background,transparent}){
  return encodeGif({width:128,height:128,palette,frames,transparent,delay:6});
 }
 
-async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic-bold',align='center',stretchVertical=true,animation='none'}) {
+// Rectangles are inset from the inner circle by at least 3px at each corner.
+function frameLayout(frame='none'){
+ if(frame==='none')return {x:0,y:0,width:128,height:128};
+ if(frame==='circle')return {x:26,y:26,width:76,height:76};
+ if(frame==='double-circle')return {x:31,y:31,width:66,height:66};
+ if(frame==='rays')return {x:24,y:24,width:80,height:80};
+ throw Error('フレームを選び直してください。');
+}
+function drawFrame(ctx,frame,color){
+ frameLayout(frame);
+ ctx.save();ctx.strokeStyle=color;ctx.lineWidth=4;ctx.lineCap='round';
+ if(frame==='circle'||frame==='double-circle'){
+  for(const radius of frame==='circle'?[60]:[60,52]){
+   ctx.beginPath();ctx.arc(64,64,radius,0,Math.PI*2);ctx.stroke();
+  }
+ }else if(frame==='rays'){
+  // Square exclusion zone: line ends remain outside the text rectangle,
+  // including the stroke's rounded cap and a 3px gap.
+  ctx.lineWidth=2;
+  for(let i=0;i<32;i++){
+   const angle=i*Math.PI*2/32,dx=Math.cos(angle),dy=Math.sin(angle);
+   const inner=45/Math.max(Math.abs(dx),Math.abs(dy));
+   const outer=61/Math.max(Math.abs(dx),Math.abs(dy));
+   ctx.beginPath();ctx.moveTo(64+dx*inner,64+dy*inner);ctx.lineTo(64+dx*outer,64+dy*outer);ctx.stroke();
+  }
+ }
+ ctx.restore();
+}
+
+async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic-bold',align='center',stretchVertical=true,animation='none',frame='none'}) {
  const errors=validate(text); if(errors.length) throw new Error(errors.join(' '));
  if(!['none','bounce'].includes(animation))throw Error('アニメーションを選び直してください。');
+ const area=frameLayout(frame);
  await ensureWebFont(fontId,text);
  const canvas=document.createElement('canvas'); canvas.width=canvas.height=128;
  const ctx=canvas.getContext('2d'); if(!ctx) throw new Error('Canvasを利用できません。');
@@ -189,7 +219,8 @@ async function renderEmoji({text,foreground,background,transparent,font:fontId='
  const fit=fitText(text.replace(/\r\n?/g,'\n').split('\n'),(line,size)=>{
   ctx.font=font(size);ctx.letterSpacing=`${-size*.08}px`;const m=ctx.measureText(line),pad=fontStrokeWidth(fontId,size)/2;
   return {width:m.width,actualBoundingBoxLeft:m.actualBoundingBoxLeft+pad,actualBoundingBoxRight:m.actualBoundingBoxRight+pad,actualBoundingBoxAscent:(m.actualBoundingBoxAscent||size*.8)+pad,actualBoundingBoxDescent:(m.actualBoundingBoxDescent||size*.2)+pad};
- },align);
+ },frame==='none'?align:'center',area);
+ if(frame!=='none'){ctx.beginPath();ctx.rect(area.x,area.y,area.width,area.height);ctx.clip();}
  ctx.font=font(fit.size);ctx.letterSpacing=`${-fit.size*.08}px`;ctx.fillStyle=foreground;ctx.textBaseline='alphabetic';
  ctx.strokeStyle=foreground;ctx.lineWidth=fontStrokeWidth(fontId,fit.size);ctx.lineJoin='round';
  if(stretchVertical){
@@ -202,19 +233,23 @@ async function renderEmoji({text,foreground,background,transparent,font:fontId='
    bottom=Math.max(bottom,line.y+(m.actualBoundingBoxDescent??fit.size*.2)+pad);
   }
   if(bottom>top){
-   const scaleY=128/(bottom-top);
+   const scaleY=area.height/(bottom-top);
    ctx.beginPath();ctx.rect(0,0,128,128);ctx.clip();
    // Transform the glyphs before rasterizing: scaling a small bitmap also
    // stretches its antialiased edge pixels, which blurs long single lines.
-   ctx.setTransform(1,0,0,scaleY,0,-top*scaleY);
+   ctx.setTransform(1,0,0,scaleY,0,area.y-top*scaleY);
   }
  }
  fit.lines.forEach(line=>{ctx.strokeText(line.text,line.x,line.y);ctx.fillText(line.text,line.x,line.y);});
+ // Keep fixed-width frame strokes independent of extreme glyph transforms.
+ const layer=document.createElement('canvas');layer.width=layer.height=128;
+ const layerCtx=layer.getContext('2d');if(!layerCtx)throw new Error('Canvasを利用できません。');
+ drawFrame(layerCtx,frame,foreground);layerCtx.drawImage(canvas,0,0);
  const output=document.createElement('canvas');output.width=output.height=128;
  const out=output.getContext('2d');if(!out)throw new Error('Canvasを利用できません。');
  if(!transparent){out.fillStyle=background;out.fillRect(0,0,128,128);}
- out.drawImage(canvas,0,0);
- const blob=animation==='bounce'?renderBounce(canvas,{foreground,background,transparent}):await new Promise(resolve=>output.toBlob(resolve,'image/png'));
+ out.drawImage(layer,0,0);
+ const blob=animation==='bounce'?renderBounce(layer,{foreground,background,transparent}):await new Promise(resolve=>output.toBlob(resolve,'image/png'));
  if(!blob) throw new Error('画像を生成できませんでした。');
  if(blob.size>=128000) throw new Error(animation==='bounce'?'GIFが128,000バイト以上です。文字数を減らすか、背景を透明にしてください。':'画像が128,000バイト以上です。');
  return {canvas:output,blob};
@@ -232,6 +267,8 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <select id="font"></select>
 <label class="label font-label" for="align">文字揃え</label>
 <select id="align"><option value="center">中央</option><option value="left">左</option><option value="right">右</option></select>
+<label class="label font-label" for="frame">フレーム</label>
+<select id="frame"><option value="none">なし</option><option value="circle">丸囲み</option><option value="double-circle">二重丸</option><option value="rays">集中線</option></select>
 <label class="label font-label" for="animation">アニメーション</label>
 <select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（実験・GIF）</option></select>
 <label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばして埋める</label>
@@ -259,15 +296,19 @@ el('font').value='gothic-bold';
 for(const [color,label] of [['#3ab0c7','水色'],['#176b50','緑'],['#ff0000','赤'],['#1111ff','青'],['#ec71a1','ピンク'],['#00bb00','明るい緑'],['#d98a00','黄'],['#252b38','墨'],['#ffffff','白']]){
  const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;el('foregroundHex').value=color;update();});app.querySelector('.swatches').append(button);
 }
-for(const id of ['text','foreground','background','name','font','align','animation'])if(initial[id]!==undefined)el(id).value=initial[id];
+for(const id of ['text','foreground','background','name','font','align','animation','frame'])if(initial[id]!==undefined)el(id).value=initial[id];
+if(!el('frame').value)el('frame').value='none';
 if(!el('font').value)el('font').value='gothic-bold';
 for(const id of ['transparent','stretchVertical'])if(initial[id]!==undefined)el(id).checked=initial[id];
 for(const id of ['foreground','background'])el(id+'Hex').value=initial[id]??el(id).value;
 if(onGenerate)el('generate').textContent='登録欄に反映';
-let revision=0, editRevision=0, current=null, url=null;
-function values(){return {animation:el('animation').value,stretchVertical:el('stretchVertical').checked,align:el('align').value,font:el('font').value,text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:el('transparent').checked};}
+let revision=0, editRevision=0, current=null, url=null, preferredAlign=el('align').value;
+function values(){return {frame:el('frame').value,animation:el('animation').value,stretchVertical:el('stretchVertical').checked,align:el('frame').value==='none'?el('align').value:preferredAlign,font:el('font').value,text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:el('transparent').checked};}
 async function update(){
  const ticket=++revision;editRevision++;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
+ if(!el('align').disabled)preferredAlign=el('align').value;
+ el('align').disabled=el('frame').value!=='none';
+ el('align').value=el('align').disabled?'center':preferredAlign;
  onDraft({...values(),name:el('name').value});
  if(!onGenerate)el('generate').textContent=el('animation').value==='bounce'?'GIFを生成':'PNGを生成';
  el('background').disabled=el('backgroundHex').disabled=el('transparent').checked;

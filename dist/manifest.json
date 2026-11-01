@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Slack文字絵文字",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Slackの登録画面で文字絵文字を作成します。",
   "content_scripts": [
     {
