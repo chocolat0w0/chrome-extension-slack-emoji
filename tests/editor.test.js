@@ -10,19 +10,19 @@ test('validates blank text and line/grapheme boundaries without splitting combin
  assert.equal(validate('あ'.repeat(13)).length,1);
  assert.equal(validate('あ'.repeat(12)).length,0);
 });
-test('fits actual glyph bounds including ascenders and descenders within padded image',()=>{
+test('fits actual glyph bounds including ascenders and descenders within image',()=>{
  const measure=(text,size)=>({width:text.length*size,actualBoundingBoxLeft:0,actualBoundingBoxRight:text.length*size,actualBoundingBoxAscent:size*.85,actualBoundingBoxDescent:size*.25});
  const fit=fitText(['確認','中'],measure);
  assert.ok(fit.size>0);
- for(const line of fit.lines){assert.ok(line.x-line.left>=8);assert.ok(line.x+line.right<=120);assert.ok(line.y-line.ascent>=8);assert.ok(line.y+line.descent<=120);}
+ for(const line of fit.lines){assert.ok(line.x-line.left>=0);assert.ok(line.x+line.right<=128);assert.ok(line.y-line.ascent>=0);assert.ok(line.y+line.descent<=128);}
 });
-test('aligns ink bounds at the left edge, center, or right edge with padding',()=>{
+test('aligns ink bounds at the left edge, center, or right edge without padding',()=>{
  const measure=(text,size)=>({width:text.length*size,actualBoundingBoxLeft:2,actualBoundingBoxRight:text.length*size-2,actualBoundingBoxAscent:size*.8,actualBoundingBoxDescent:size*.2});
  for(const align of ['left','center','right']){
   const fit=fitText(['長い行','短'],measure,align);
   for(const line of fit.lines){
-   if(align==='left')assert.equal(line.x-line.left,8);
-   if(align==='right')assert.equal(line.x+line.right,120);
+   if(align==='left')assert.equal(line.x-line.left,0);
+   if(align==='right')assert.equal(line.x+line.right,128);
    if(align==='center')assert.equal((line.x-line.left+line.x+line.right)/2,64);
   }
  }

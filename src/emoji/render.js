@@ -24,11 +24,11 @@ export async function renderEmoji({text,foreground,background,transparent,font:f
    bottom=Math.max(bottom,line.y+(m.actualBoundingBoxDescent??fit.size*.2)+pad);
   }
   if(bottom>top){
-   const scaleY=112/(bottom-top);
-   ctx.beginPath();ctx.rect(0,8,128,112);ctx.clip();
+   const scaleY=128/(bottom-top);
+   ctx.beginPath();ctx.rect(0,0,128,128);ctx.clip();
    // Transform the glyphs before rasterizing: scaling a small bitmap also
    // stretches its antialiased edge pixels, which blurs long single lines.
-   ctx.setTransform(1,0,0,scaleY,0,8-top*scaleY);
+   ctx.setTransform(1,0,0,scaleY,0,-top*scaleY);
   }
  }
  fit.lines.forEach(line=>{ctx.strokeText(line.text,line.x,line.y);ctx.fillText(line.text,line.x,line.y);});

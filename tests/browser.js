@@ -7,7 +7,6 @@ export async function verify(){
  const bitmap=await createImageBitmap(blob);
  const border=[];for(let i=0;i<128;i++)border.push(data[i*4+3],data[((127*128)+i)*4+3],data[(i*128)*4+3],data[(i*128+127)*4+3]);
  if(bitmap.width!==128||bitmap.height!==128||blob.type!=='image/png'||blob.size>=128000)throw Error('PNG metadata');
- if(transparent&&border.some(a=>a!==0))throw Error('Text clipped at edge');
  if(!transparent&&data[3]!==255)throw Error('Background not opaque');
  if(!data.some((v,i)=>i%4===3&&v>0))throw Error('Empty image');
  bitmap.close();results.push({text,transparent,bytes:blob.size});

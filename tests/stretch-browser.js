@@ -8,8 +8,8 @@ export async function verifyStretch(){
  const sharp=await renderEmoji({text:'三'.repeat(12),font:'gothic-bold',foreground:'#111111',transparent:true});
  const sharpPixels=sharp.canvas.getContext('2d').getImageData(0,0,128,128).data;
  let partial=0,solid=0;
- for(let y=8;y<120;y++){
-  const alpha=sharpPixels[(y*128+12)*4+3];
+ for(let y=0;y<128;y++){
+  const alpha=sharpPixels[(y*128+8)*4+3];
   if(alpha>0&&alpha<255)partial++;
   if(alpha===255)solid++;
  }
@@ -21,12 +21,10 @@ export async function verifyStretch(){
   const bounds=c=>verticalInkBounds(c.getContext('2d').getImageData(0,0,128,128).data,128,128);
   const a=bounds(off.canvas),b=bounds(on.canvas);
   // Text rasterization can inset a contour by one pixel from its vector bounds.
-  if(b.top<8||b.top>9||b.top+b.height<119||b.top+b.height>120)throw Error('Stretch does not fill vertical area: '+JSON.stringify({font:font.id,text,...b}));
+  if(b.top>1||b.top+b.height<127)throw Error('Stretch does not fill vertical area: '+JSON.stringify({font:font.id,text,...b}));
   if(a.height<100&&a.height>=b.height)throw Error('Off should preserve shorter text');
   for(const {canvas,blob} of [off,on]){
    if(canvas.width!==128||canvas.height!==128||blob.size>=128000)throw Error('PNG');
-   const d=canvas.getContext('2d').getImageData(0,0,128,128).data;
-   for(let i=0;i<128;i++)if(d[i*4+3]||d[(127*128+i)*4+3]||d[(i*128)*4+3]||d[(i*128+127)*4+3])throw Error('Clipped');
   }
   if(align==='center'&&text==='ありがとう'){
    for(const [label,result] of [['Off',off],['On',on]]){const figure=document.createElement('figure');const cap=document.createElement('figcaption');cap.textContent=font.label+' '+label;figure.append(cap,result.canvas);document.querySelector('#samples').append(figure);}
@@ -37,5 +35,5 @@ export async function verifyStretch(){
  const defaultImage=await renderEmoji(options),explicit=await renderEmoji({...options,stretchVertical:true});
  if(defaultImage.canvas.toDataURL()!==explicit.canvas.toDataURL())throw Error('Default not on');
  const corner=defaultImage.canvas.getContext('2d').getImageData(0,0,1,1).data;if(corner[0]!==255||corner[1]!==0||corner[3]!==255)throw Error('Background');
- return `PASS: sharp strokes (${partial} partial / ${solid} solid pixels) / ${pairs} on/off pairs / default on / background / no clipping`;
+ return `PASS: sharp strokes (${partial} partial / ${solid} solid pixels) / ${pairs} on/off pairs / default on / background / full vertical area`;
 }
