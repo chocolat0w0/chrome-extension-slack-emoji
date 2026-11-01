@@ -2,10 +2,10 @@ import {fitText} from './layout.js';
 import {canvasFont,fontStrokeWidth} from './fonts.js';
 import {ensureWebFont} from './font-loader.js';
 import {validate} from '../editor/model.js';
-import {renderBounce} from './animation.js';
+import {renderAnimation} from './animation.js';
 export async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic-bold',align='center',stretchVertical=true,animation='none'}) {
  const errors=validate(text); if(errors.length) throw new Error(errors.join(' '));
- if(!['none','bounce'].includes(animation))throw Error('アニメーションを選び直してください。');
+ if(!['none','bounce','shake','pop','blink'].includes(animation))throw Error('アニメーションを選び直してください。');
  await ensureWebFont(fontId,text);
  const canvas=document.createElement('canvas'); canvas.width=canvas.height=128;
  const ctx=canvas.getContext('2d'); if(!ctx) throw new Error('Canvasを利用できません。');
@@ -38,8 +38,8 @@ export async function renderEmoji({text,foreground,background,transparent,font:f
  const out=output.getContext('2d');if(!out)throw new Error('Canvasを利用できません。');
  if(!transparent){out.fillStyle=background;out.fillRect(0,0,128,128);}
  out.drawImage(canvas,0,0);
- const blob=animation==='bounce'?renderBounce(canvas,{foreground,background,transparent}):await new Promise(resolve=>output.toBlob(resolve,'image/png'));
+ const blob=animation!=='none'?renderAnimation(canvas,{foreground,background,transparent,animation}):await new Promise(resolve=>output.toBlob(resolve,'image/png'));
  if(!blob) throw new Error('画像を生成できませんでした。');
- if(blob.size>=128000) throw new Error(animation==='bounce'?'GIFが128,000バイト以上です。文字数を減らすか、背景を透明にしてください。':'画像が128,000バイト以上です。');
+ if(blob.size>=128000) throw new Error(animation!=='none'?'GIFが128,000バイト以上です。文字数を減らすか、背景を透明にしてください。':'画像が128,000バイト以上です。');
  return {canvas:output,blob};
 }
