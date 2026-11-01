@@ -16,6 +16,6 @@ export async function verifyFonts(){
    results.push({font:preset.id,text,bytes:blob.size});
   }
  }
- if(new Set(hashes).size!==4)throw Error('Some font styles render identically in this environment');
- return {result:'PASS: four distinct styles / 8 PNG cases / unclipped edges',cases:results};
+ if(new Set(hashes).size!==FONT_PRESETS.length)throw Error('Some font styles render identically in this environment');
+ return {result:`PASS: ${FONT_PRESETS.length} distinct styles / ${results.length} PNG cases / unclipped edges`,cases:results};
 }
