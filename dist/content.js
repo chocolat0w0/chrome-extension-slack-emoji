@@ -39,7 +39,7 @@ function verticalInkBounds(pixels,width,height){
 // Google Fonts are fetched on use; aliases prevent accidental local-font substitution.
 const FONT_PRESETS = [
  {id:'gothic',label:'ゴシック体',weight:700,stroke:0.025,googleFamily:'Noto Sans JP',family:'"SlackEmojiWebGothic"'},
- {id:'gothic-bold',label:'太いゴシック体',weight:900,stroke:0.055,googleFamily:'Noto Sans JP',family:'"SlackEmojiWebGothicBold"'},
+ {id:'gothic-bold',label:'太いゴシック体',weight:900,stroke:0.04,googleFamily:'Noto Sans JP',family:'"SlackEmojiWebGothicBold"'},
  {id:'mincho',label:'明朝体',weight:900,stroke:0.025,googleFamily:'Noto Serif JP',family:'"SlackEmojiWebMincho"'},
  {id:'rounded',label:'丸文字',weight:900,stroke:0.025,googleFamily:'M PLUS Rounded 1c',family:'"SlackEmojiWebMaru"'}
 ];

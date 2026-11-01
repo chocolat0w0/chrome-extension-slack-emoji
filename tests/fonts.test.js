@@ -13,8 +13,8 @@ test('offers requested styles and defaults to bold Gothic',()=>{
  assert.throws(()=>canvasFont('invalid',32),/フォント/);
 });
 
-test('thickens all fonts, with stronger stroke for bold Gothic',()=>{
+test('applies 4% stroke to bold Gothic and 2.5% to other fonts',()=>{
  for(const preset of FONT_PRESETS){assert.ok(fontStrokeWidth(preset.id,48)>0);}
- assert.ok(fontStrokeWidth('gothic-bold',48)>fontStrokeWidth('gothic',48));
+ for(const preset of FONT_PRESETS)assert.ok(Math.abs(fontStrokeWidth(preset.id,48)-(preset.id==='gothic-bold'?1.92:1.2))<1e-9);
  assert.ok(fontStrokeWidth('rounded',12)<fontStrokeWidth('rounded',48));
 });
