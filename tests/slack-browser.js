@@ -20,6 +20,9 @@ export async function verifyIntegration(){
  const name=root.querySelector('#name');name.value='test_editor';name.dispatchEvent(new Event('input',{bubbles:true}));
  await waitFor(()=>!root.querySelector('#generate').disabled);root.querySelector('#generate').click();await waitFor(()=>!root.querySelector('#generate').disabled);
  assert(root.querySelector('#result').textContent.includes('反映済み'),'editor confirms reflection');
+ const animation=root.querySelector('#animation');animation.value='bounce';animation.dispatchEvent(new Event('input',{bubbles:true}));await waitFor(()=>!root.querySelector('#generate').disabled);
+ root.querySelector('#generate').click();await waitFor(()=>!root.querySelector('#generate').disabled);
+ assert(root.querySelector('#result').textContent.includes('反映済み')&&f.file.files[0].name==='test_editor.gif'&&f.file.files[0].type==='image/gif','animated GIF reflected into Slack form');
  const font=root.querySelector('#font');font.value='mincho';font.dispatchEvent(new Event('input',{bubbles:true}));await waitFor(()=>!root.querySelector('#generate').disabled);
  const align=root.querySelector('#align');align.value='right';align.dispatchEvent(new Event('input',{bubbles:true}));await waitFor(()=>!root.querySelector('#generate').disabled);
  assert(root.querySelector('#stretchVertical').checked,'stretch defaults on');
@@ -27,6 +30,6 @@ export async function verifyIntegration(){
  const text=root.querySelector('#text');text.value='変更';text.dispatchEvent(new Event('input',{bubbles:true}));await waitFor(()=>!root.querySelector('#generate').disabled);
  assert(root.querySelector('#result').textContent.includes('変更を'),'editing needs reflection');
  area.append(document.createElement('div'));await new Promise(r=>setTimeout(r,30));assert(area.querySelectorAll('[data-slack-emoji-editor]').length===1,'no duplicate mount');
- f=make();await new Promise(r=>setTimeout(r,30));assert(area.querySelectorAll('[data-slack-emoji-editor]').length===1,'reopen mounts');assert(area.querySelector('[data-slack-emoji-editor]').shadowRoot.querySelector('#text').value==='変更','draft preserved');assert(area.querySelector('[data-slack-emoji-editor]').shadowRoot.querySelector('#font').value==='mincho','font draft preserved');assert(area.querySelector('[data-slack-emoji-editor]').shadowRoot.querySelector('#align').value==='right','alignment draft preserved');assert(!area.querySelector('[data-slack-emoji-editor]').shadowRoot.querySelector('#stretchVertical').checked,'stretch off draft preserved');stop();area.remove();
+ f=make();await new Promise(r=>setTimeout(r,30));assert(area.querySelectorAll('[data-slack-emoji-editor]').length===1,'reopen mounts');assert(area.querySelector('[data-slack-emoji-editor]').shadowRoot.querySelector('#text').value==='変更','draft preserved');assert(area.querySelector('[data-slack-emoji-editor]').shadowRoot.querySelector('#font').value==='mincho','font draft preserved');assert(area.querySelector('[data-slack-emoji-editor]').shadowRoot.querySelector('#align').value==='right','alignment draft preserved');assert(area.querySelector('[data-slack-emoji-editor]').shadowRoot.querySelector('#animation').value==='bounce','animation draft preserved');assert(!area.querySelector('[data-slack-emoji-editor]').shadowRoot.querySelector('#stretchVertical').checked,'stretch off draft preserved');stop();area.remove();
  return 'PASS: transfer / ambiguity / detached input / timeout / mount / reflection / edited state / duplicate prevention / reopen / preserved draft';
 }

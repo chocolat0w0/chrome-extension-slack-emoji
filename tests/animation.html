@@ -1,0 +1,4 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><title>GIF animation verification</title><link rel="stylesheet" href="../src/editor/styles.css"><body><pre id="result">検証中…</pre><script type="module">
+import {verifyAnimation} from './animation-browser.js';
+try{document.querySelector('#result').textContent='PASS: '+JSON.stringify(await verifyAnimation(),null,2);}catch(error){document.querySelector('#result').textContent='FAIL: '+error.stack;throw error;}
+</script></body></html>

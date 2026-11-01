@@ -13,14 +13,16 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <select id="font"></select>
 <label class="label font-label" for="align">文字揃え</label>
 <select id="align"><option value="center">中央</option><option value="left">左</option><option value="right">右</option></select>
+<label class="label font-label" for="animation">アニメーション</label>
+<select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（実験・GIF）</option></select>
 <label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばして埋める</label>
 <fieldset><legend class="label">色</legend>
 <div class="colors">
 <div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#176b50"><input id="foregroundHex" type="text" value="#176b50" aria-label="文字色のHEXコード" placeholder="#176b50" spellcheck="false" autocomplete="off"></div></div>
-<div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffedb5"><input id="backgroundHex" type="text" value="#ffedb5" aria-label="背景色のHEXコード" placeholder="#ffedb5" spellcheck="false" autocomplete="off"></div></div>
+<div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffffff"><input id="backgroundHex" type="text" value="#ffffff" aria-label="背景色のHEXコード" placeholder="#ffffff" spellcheck="false" autocomplete="off"></div></div>
 </div>
 <div class="swatches" aria-label="文字色プリセット"></div>
-<label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label></fieldset>
+<label class="check"><input id="transparent" type="checkbox">背景を透明にする</label></fieldset>
 <label class="label" for="name">Slackでの名前</label>
 <input id="name" type="text" placeholder="例：arigatou" autocomplete="off">
 <p id="error" role="alert"></p>
@@ -38,15 +40,16 @@ el('font').value='gothic-bold';
 for(const [color,label] of [['#176b50','緑'],['#ff0000','赤'],['#1111ff','青'],['#3ab0c7','水色'],['#ec71a1','ピンク'],['#00bb00','明るい緑'],['#252b38','墨'],['#ffffff','白'],['#d98a00','黄']]){
  const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;el('foregroundHex').value=color;update();});app.querySelector('.swatches').append(button);
 }
-for(const id of ['text','foreground','background','name','font','align'])if(initial[id]!==undefined)el(id).value=initial[id];
+for(const id of ['text','foreground','background','name','font','align','animation'])if(initial[id]!==undefined)el(id).value=initial[id];
 for(const id of ['transparent','stretchVertical'])if(initial[id]!==undefined)el(id).checked=initial[id];
 for(const id of ['foreground','background'])el(id+'Hex').value=initial[id]??el(id).value;
 if(onGenerate)el('generate').textContent='登録欄に反映';
 let revision=0, current=null, url=null;
-function values(){return {stretchVertical:el('stretchVertical').checked,align:el('align').value,font:el('font').value,text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:el('transparent').checked};}
+function values(){return {animation:el('animation').value,stretchVertical:el('stretchVertical').checked,align:el('align').value,font:el('font').value,text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:el('transparent').checked};}
 async function update(){
  const ticket=++revision;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
  onDraft({...values(),name:el('name').value});
+ if(!onGenerate)el('generate').textContent=el('animation').value==='bounce'?'GIFを生成':'PNGを生成';
  el('background').disabled=el('backgroundHex').disabled=el('transparent').checked;
  const lines=el('text').value.split('\n');el('counter').textContent=`${lines.length}行 / 最長${Math.max(...lines.map(s=>graphemes(s).length))}文字`;
  const errors=validate(el('text').value);
@@ -59,7 +62,7 @@ async function update(){
   const image=await renderEmoji(values());if(disposed||ticket!==revision)return;
   if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(image.blob);
   app.querySelectorAll('img').forEach(img=>img.src=url);current=image.blob;
-  el('size').textContent=`128 × 128 px · ${image.blob.size.toLocaleString()} bytes`;
+  el('size').textContent=`128 × 128 px · ${image.blob.type==='image/gif'?'GIF · 20コマ · 1.2秒':'PNG'} · ${image.blob.size.toLocaleString()} bytes`;
   el('generate').disabled=busy;
  }catch(error){if(!disposed&&ticket===revision)el('error').textContent=error.message;}
  finally{if(!disposed&&ticket===revision)el('loading').textContent='';}
@@ -75,7 +78,8 @@ el('editor').addEventListener('input',event=>{
 el('generate').addEventListener('click',async ()=>{
  if(!current||busy||disposed)return;
  const name=el('name').value.trim();if(!name){el('result').textContent='Slackでの名前を入力してください。';el('name').focus();return;}
- const file=new File([current],`${name}.png`,{type:'image/png'});
+ const extension=current.type==='image/gif'?'gif':'png';
+ const file=new File([current],`${name}.${extension}`,{type:current.type});
  const ticket=revision;
  if(onGenerate){
   busy=true;el('generate').disabled=true;el('result').textContent='反映中…';

@@ -122,8 +122,67 @@ async function ensureWebFont(id,text){
  }catch{throw Error('フォントを取得できませんでした。通信環境や入力文字を確認して、再度お試しください。');}
 }
 
-async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic-bold',align='center',stretchVertical=true}) {
+// GIF89a with a shared 256-color palette, full frames, and 9–12 bit LZW.
+function compressGifIndices(pixels){
+ const bytes=[];let bits=0,count=0,width=9,decodedNext=258,hasPrevious=false;
+ // Track the decoder's dictionary: it learns entries one emitted code later.
+ const emit=code=>{
+  bits|=code<<count;count+=width;while(count>=8){bytes.push(bits&255);bits>>>=8;count-=8;}
+  if(code===256){width=9;decodedNext=258;hasPrevious=false;}
+  else if(code!==257){if(hasPrevious&&++decodedNext===(1<<width)&&width<12)width++;hasPrevious=true;}
+ };
+ let dictionary=new Map(),next=258,prefix=pixels[0];emit(256);
+ for(let i=1;i<pixels.length;i++){
+  const pixel=pixels[i],key=prefix*256+pixel,found=dictionary.get(key);
+  if(found!==undefined){prefix=found;continue;}
+  emit(prefix);dictionary.set(key,next++);prefix=pixel;
+  if(next===4095){emit(256);dictionary=new Map();next=258;}
+ }
+ emit(prefix);emit(257);if(count)bytes.push(bits&255);
+ return bytes;
+}
+function encodeGif({width,height,palette,frames,transparent=false,delay=6}){
+ if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1||width>65535||height>65535||palette.length!==768||!frames.length||frames.length>50||frames.some(frame=>frame.length!==width*height))throw Error('GIFの画像データが不正です。');
+ const bytes=[];
+ const word=value=>bytes.push(value&255,value>>8&255);
+ bytes.push(...new TextEncoder().encode('GIF89a'));word(width);word(height);
+ bytes.push(0xf7,0,0,...palette);
+ // NETSCAPE2.0: repeat forever.
+ bytes.push(0x21,0xff,11,...new TextEncoder().encode('NETSCAPE2.0'),3,1,0,0,0);
+ for(const frame of frames){
+  // Restore to background before the next frame, including transparent pixels.
+  bytes.push(0x21,0xf9,4,transparent?9:8);word(delay);bytes.push(0,0);
+  bytes.push(0x2c);word(0);word(0);word(width);word(height);bytes.push(0,8);
+  const data=compressGifIndices(frame);
+  for(let offset=0;offset<data.length;offset+=255){const block=data.slice(offset,offset+255);bytes.push(block.length,...block);}
+  bytes.push(0);
+ }
+ bytes.push(0x3b);return new Blob([Uint8Array.from(bytes)],{type:'image/gif'});
+}
+
+function renderBounce(layer,{foreground,background,transparent}){
+ const rgb=hex=>[1,3,5].map(offset=>parseInt(hex.slice(offset,offset+2),16));
+ const ink=rgb(foreground),paper=transparent?ink:rgb(background),palette=new Uint8Array(768);
+ // A two-color gradient preserves the exact selected colors and opaque edges.
+ for(let alpha=0;alpha<256;alpha++)for(let channel=0;channel<3;channel++)palette[alpha*3+channel]=Math.round(paper[channel]+(ink[channel]-paper[channel])*alpha/255);
+ const canvas=document.createElement('canvas');canvas.width=canvas.height=128;
+ const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)throw Error('Canvasを利用できません。');
+ const frames=[];
+ for(let i=0;i<20;i++){
+  const t=i/20,y=25.6-20*4*t*(1-t);
+  ctx.clearRect(0,0,128,128);ctx.drawImage(layer,12.8,y,102.4,102.4);
+  const rgba=ctx.getImageData(0,0,128,128).data,pixels=new Uint8Array(128*128);
+  // 32 edge shades keep antialiasing while avoiding hundreds of near-identical
+  // colors that inflate animated text. Endpoints retain exact foreground/background.
+  for(let p=0;p<pixels.length;p++){const alpha=rgba[p*4+3];pixels[p]=transparent?(alpha>=128?255:0):Math.round(Math.round(alpha*31/255)*255/31);}
+  frames.push(pixels);
+ }
+ return encodeGif({width:128,height:128,palette,frames,transparent,delay:6});
+}
+
+async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic-bold',align='center',stretchVertical=true,animation='none'}) {
  const errors=validate(text); if(errors.length) throw new Error(errors.join(' '));
+ if(!['none','bounce'].includes(animation))throw Error('アニメーションを選び直してください。');
  await ensureWebFont(fontId,text);
  const canvas=document.createElement('canvas'); canvas.width=canvas.height=128;
  const ctx=canvas.getContext('2d'); if(!ctx) throw new Error('Canvasを利用できません。');
@@ -156,9 +215,9 @@ async function renderEmoji({text,foreground,background,transparent,font:fontId='
  const out=output.getContext('2d');if(!out)throw new Error('Canvasを利用できません。');
  if(!transparent){out.fillStyle=background;out.fillRect(0,0,128,128);}
  out.drawImage(canvas,0,0);
- const blob=await new Promise(resolve=>output.toBlob(resolve,'image/png'));
- if(!blob) throw new Error('PNGを生成できませんでした。');
- if(blob.size>=128000) throw new Error('画像が128,000バイト以上です。');
+ const blob=animation==='bounce'?renderBounce(canvas,{foreground,background,transparent}):await new Promise(resolve=>output.toBlob(resolve,'image/png'));
+ if(!blob) throw new Error('画像を生成できませんでした。');
+ if(blob.size>=128000) throw new Error(animation==='bounce'?'GIFが128,000バイト以上です。文字数を減らすか、背景を透明にしてください。':'画像が128,000バイト以上です。');
  return {canvas:output,blob};
 }
 
@@ -174,14 +233,16 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <select id="font"></select>
 <label class="label font-label" for="align">文字揃え</label>
 <select id="align"><option value="center">中央</option><option value="left">左</option><option value="right">右</option></select>
+<label class="label font-label" for="animation">アニメーション</label>
+<select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（実験・GIF）</option></select>
 <label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばして埋める</label>
 <fieldset><legend class="label">色</legend>
 <div class="colors">
 <div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#176b50"><input id="foregroundHex" type="text" value="#176b50" aria-label="文字色のHEXコード" placeholder="#176b50" spellcheck="false" autocomplete="off"></div></div>
-<div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffedb5"><input id="backgroundHex" type="text" value="#ffedb5" aria-label="背景色のHEXコード" placeholder="#ffedb5" spellcheck="false" autocomplete="off"></div></div>
+<div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffffff"><input id="backgroundHex" type="text" value="#ffffff" aria-label="背景色のHEXコード" placeholder="#ffffff" spellcheck="false" autocomplete="off"></div></div>
 </div>
 <div class="swatches" aria-label="文字色プリセット"></div>
-<label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label></fieldset>
+<label class="check"><input id="transparent" type="checkbox">背景を透明にする</label></fieldset>
 <label class="label" for="name">Slackでの名前</label>
 <input id="name" type="text" placeholder="例：arigatou" autocomplete="off">
 <p id="error" role="alert"></p>
@@ -199,15 +260,16 @@ el('font').value='gothic-bold';
 for(const [color,label] of [['#176b50','緑'],['#ff0000','赤'],['#1111ff','青'],['#3ab0c7','水色'],['#ec71a1','ピンク'],['#00bb00','明るい緑'],['#252b38','墨'],['#ffffff','白'],['#d98a00','黄']]){
  const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;el('foregroundHex').value=color;update();});app.querySelector('.swatches').append(button);
 }
-for(const id of ['text','foreground','background','name','font','align'])if(initial[id]!==undefined)el(id).value=initial[id];
+for(const id of ['text','foreground','background','name','font','align','animation'])if(initial[id]!==undefined)el(id).value=initial[id];
 for(const id of ['transparent','stretchVertical'])if(initial[id]!==undefined)el(id).checked=initial[id];
 for(const id of ['foreground','background'])el(id+'Hex').value=initial[id]??el(id).value;
 if(onGenerate)el('generate').textContent='登録欄に反映';
 let revision=0, current=null, url=null;
-function values(){return {stretchVertical:el('stretchVertical').checked,align:el('align').value,font:el('font').value,text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:el('transparent').checked};}
+function values(){return {animation:el('animation').value,stretchVertical:el('stretchVertical').checked,align:el('align').value,font:el('font').value,text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:el('transparent').checked};}
 async function update(){
  const ticket=++revision;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
  onDraft({...values(),name:el('name').value});
+ if(!onGenerate)el('generate').textContent=el('animation').value==='bounce'?'GIFを生成':'PNGを生成';
  el('background').disabled=el('backgroundHex').disabled=el('transparent').checked;
  const lines=el('text').value.split('\n');el('counter').textContent=`${lines.length}行 / 最長${Math.max(...lines.map(s=>graphemes(s).length))}文字`;
  const errors=validate(el('text').value);
@@ -220,7 +282,7 @@ async function update(){
   const image=await renderEmoji(values());if(disposed||ticket!==revision)return;
   if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(image.blob);
   app.querySelectorAll('img').forEach(img=>img.src=url);current=image.blob;
-  el('size').textContent=`128 × 128 px · ${image.blob.size.toLocaleString()} bytes`;
+  el('size').textContent=`128 × 128 px · ${image.blob.type==='image/gif'?'GIF · 20コマ · 1.2秒':'PNG'} · ${image.blob.size.toLocaleString()} bytes`;
   el('generate').disabled=busy;
  }catch(error){if(!disposed&&ticket===revision)el('error').textContent=error.message;}
  finally{if(!disposed&&ticket===revision)el('loading').textContent='';}
@@ -236,7 +298,8 @@ el('editor').addEventListener('input',event=>{
 el('generate').addEventListener('click',async ()=>{
  if(!current||busy||disposed)return;
  const name=el('name').value.trim();if(!name){el('result').textContent='Slackでの名前を入力してください。';el('name').focus();return;}
- const file=new File([current],`${name}.png`,{type:'image/png'});
+ const extension=current.type==='image/gif'?'gif':'png';
+ const file=new File([current],`${name}.${extension}`,{type:current.type});
  const ticket=revision;
  if(onGenerate){
   busy=true;el('generate').disabled=true;el('result').textContent='反映中…';
