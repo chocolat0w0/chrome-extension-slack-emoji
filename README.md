@@ -65,7 +65,7 @@ npm run build
 npm run package
 ```
 
-`dist/` がChrome読み込み用フォルダです。`npm run package` はビルド後、`releases/slack-emoji-0.6.8.zip` とSHA-256ファイルを生成し、ZIPの展開内容がdistと同一であることを検証します。ZIPにはmanifest・画面用スクリプト・フォント取得用スクリプトの3ファイルのみ含まれます。`dist/` はGitに含め、配布ZIPは生成物としてGitの対象外にしています。
+`dist/` がChrome読み込み用フォルダです。`npm run package` はビルド後、`releases/slack-emoji-0.6.9.zip` とSHA-256ファイルを生成し、ZIPの展開内容がdistと同一であることを検証します。ZIPにはmanifest・画面用スクリプト・フォント取得用スクリプトの3ファイルのみ含まれます。`dist/` はGitに含め、配布ZIPは生成物としてGitの対象外にしています。
 
 Chrome Web Storeへの公開はしていません。別プロファイルでの導入確認は個人利用のため省略しています。
 
