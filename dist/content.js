@@ -9,6 +9,11 @@ function validate(text) {
  if(lines.some(line=>graphemes(line).length>12)) errors.push('1行は12文字までにしてください。');
  return errors;
 }
+function normalizeHex(value){
+ const hex=value.trim().replace(/^#/,'');
+ if(/^[0-9a-f]{3}$/i.test(hex))return '#'+[...hex].map(c=>c+c).join('').toLowerCase();
+ return /^[0-9a-f]{6}$/i.test(hex)?'#'+hex.toLowerCase():null;
+}
 
 function fitText(texts, measure, align='center') {
  if(!['center','left','right'].includes(align))throw Error('文字揃えを選び直してください。');
@@ -155,7 +160,10 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <select id="align"><option value="center">中央</option><option value="left">左</option><option value="right">右</option></select>
 <label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばして埋める</label>
 <fieldset><legend class="label">色</legend>
-<div class="colors"><label>文字 <input id="foreground" type="color" value="#176b50"></label><label>背景 <input id="background" type="color" value="#ffedb5"></label></div>
+<div class="colors">
+<div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#176b50"><input id="foregroundHex" type="text" value="#176b50" aria-label="文字色のHEXコード" placeholder="#176b50" spellcheck="false" autocomplete="off"></div></div>
+<div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffedb5"><input id="backgroundHex" type="text" value="#ffedb5" aria-label="背景色のHEXコード" placeholder="#ffedb5" spellcheck="false" autocomplete="off"></div></div>
+</div>
 <div class="swatches" aria-label="文字色プリセット"></div>
 <label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label></fieldset>
 <label class="label" for="name">Slackでの名前</label>
@@ -175,19 +183,22 @@ const el=id=>app.querySelector('#'+id);
 for(const preset of FONT_PRESETS){const option=document.createElement('option');option.value=preset.id;option.textContent=preset.label;el('font').append(option);}
 el('font').value='gothic-bold';
 for(const [color,label] of [['#176b50','緑'],['#d44735','赤'],['#252b38','墨'],['#ffffff','白'],['#d98a00','黄']]){
- const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;update();});app.querySelector('.swatches').append(button);
+ const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;el('foregroundHex').value=color;update();});app.querySelector('.swatches').append(button);
 }
 for(const id of ['text','foreground','background','name','font','align'])if(initial[id]!==undefined)el(id).value=initial[id];
 for(const id of ['transparent','stretchVertical'])if(initial[id]!==undefined)el(id).checked=initial[id];
+for(const id of ['foreground','background'])el(id+'Hex').value=initial[id]??el(id).value;
 if(onGenerate)el('generate').textContent='登録欄に反映';
 let revision=0, current=null, url=null;
-function values(){return {stretchVertical:el('stretchVertical').checked,align:el('align').value,font:el('font').value,text:el('text').value,foreground:el('foreground').value,background:el('background').value,transparent:el('transparent').checked};}
+function values(){return {stretchVertical:el('stretchVertical').checked,align:el('align').value,font:el('font').value,text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:el('transparent').checked};}
 async function update(){
  const ticket=++revision;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
  onDraft({...values(),name:el('name').value});
- el('background').disabled=el('transparent').checked;
+ el('background').disabled=el('backgroundHex').disabled=el('transparent').checked;
  const lines=el('text').value.split('\n');el('counter').textContent=`${lines.length}行 / 最長${Math.max(...lines.map(s=>graphemes(s).length))}文字`;
- const errors=validate(el('text').value);el('error').textContent=errors.join(' ');
+ const errors=validate(el('text').value);
+ for(const [id,label] of [['foreground','文字色'],['background','背景色']]){const valid=normalizeHex(el(id+'Hex').value);const invalid=!valid&&(id==='foreground'||!el('transparent').checked);el(id+'Hex').setAttribute('aria-invalid',String(invalid));if(invalid)errors.push(label+'はHEXコード（例：#EC71A1）で入力してください。');}
+ el('error').textContent=errors.join(' ');
  if(errors.length){el('loading').textContent='';app.querySelectorAll('img').forEach(img=>img.removeAttribute('src'));el('size').textContent='';return;}
  el('loading').textContent='フォントを読み込み中…';
  app.querySelectorAll('img').forEach(img=>img.removeAttribute('src'));el('size').textContent='';
@@ -201,7 +212,13 @@ async function update(){
  finally{if(!disposed&&ticket===revision)el('loading').textContent='';}
 }
 el('editor').addEventListener('submit',e=>e.preventDefault());
-el('editor').addEventListener('input',update);
+el('editor').addEventListener('input',event=>{
+ for(const id of ['foreground','background']){
+  if(event.target===el(id))el(id+'Hex').value=el(id).value;
+  if(event.target===el(id+'Hex')){const color=normalizeHex(el(id+'Hex').value);if(color)el(id).value=color;}
+ }
+ update();
+});
 el('generate').addEventListener('click',async ()=>{
  if(!current||busy||disposed)return;
  const name=el('name').value.trim();if(!name){el('result').textContent='Slackでの名前を入力してください。';el('name').focus();return;}
@@ -272,5 +289,5 @@ function startIntegration(scope=document,styles='') {
  const stop=()=>{observer.disconnect();clear();};return stop;
 }
 
-if(/^\/customize\/emoji\/?$/.test(location.pathname)){const stop=startIntegration(document,":root{font-family:\"Hiragino Kaku Gothic ProN\",\"Yu Gothic\",sans-serif;color:#26352f;background:#f7f7f4;font-size:13px}*{box-sizing:border-box}body{margin:0}main{max-width:560px;padding:20px;margin:0 auto}h1{font-size:16px;margin:0 0 16px;font-weight:600}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:24px;align-items:start}.label{display:block;font-weight:600;font-size:12px;margin-bottom:6px}textarea,input[type=text],select{font:inherit;width:100%;border:1px solid #b9c1bb;border-radius:4px;padding:7px 9px;background:#fff;color:inherit}textarea{resize:vertical;min-height:58px;font-size:16px;line-height:1.4}textarea:focus,input:focus,select:focus,button:focus-visible{outline:2px solid #176b50;outline-offset:2px}.helper{font-size:10px;color:#68746c;line-height:1.6}.helper:has(span){display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px}.helper output{white-space:nowrap}fieldset{border:0;padding:0;margin:16px 0}.colors{display:flex;gap:16px}.colors label{display:flex;align-items:center;gap:6px;font-size:12px}input[type=color]{width:30px;height:28px;padding:2px;border:1px solid #b9c1bb;background:none;cursor:pointer}.swatches{display:flex;gap:8px;margin:10px 0}.swatches button{width:20px;height:20px;border:1px solid #bbc2ba;border-radius:50%;cursor:pointer}.check{font-size:12px;display:flex;align-items:center;gap:6px}input[type=checkbox]{accent-color:#176b50}#error{font-size:11px;color:#aa3128;margin:8px 0}#error:empty{display:none}.stage{width:96px;height:96px;display:grid;place-items:center;border:1px solid #cdd4c4;border-radius:3px}.checker{background-color:#fff;background-image:conic-gradient(#e8eae4 25%,transparent 0 50%,#e8eae4 0 75%,transparent 0);background-size:12px 12px}#large{width:80px;height:80px;object-fit:contain}img:not([src]){visibility:hidden}.samples{display:flex;gap:8px;margin-top:8px}.samples>div>span{font-size:10px;color:#68746c}.sample{display:grid;place-items:center;margin-top:3px;width:36px;height:32px;border-radius:3px}.light{background:white;border:1px solid #e0e3dd}.dark{background:#24282d}.small{width:22px;height:22px}#size{margin:8px 0}#generate{width:100%;border:0;border-radius:4px;background:#176b50;color:white;padding:9px;font:inherit;cursor:pointer}#generate:disabled{opacity:.4;cursor:default}#result{display:block;font-size:11px;line-height:1.6;margin-top:8px;overflow-wrap:anywhere}@media(max-width:400px){main{padding:12px}.workspace{grid-template-columns:minmax(0,1fr) 110px;gap:12px}}\n\n.font-label{margin-top:12px}select{font-size:12px;padding:7px 9px}\n\n.stretch-option{margin-top:10px}\n\n:host{display:block;color:#26352f;font:13px \"Hiragino Kaku Gothic ProN\",sans-serif;background:#f7f7f4;border:1px solid #d4d9d4;border-radius:4px;margin:12px 0}main{margin:0;padding:16px;max-width:none}" );addEventListener('pagehide',stop,{once:true});}
+if(/^\/customize\/emoji\/?$/.test(location.pathname)){const stop=startIntegration(document,":root{font-family:\"Hiragino Kaku Gothic ProN\",\"Yu Gothic\",sans-serif;color:#26352f;background:#f7f7f4;font-size:13px}*{box-sizing:border-box}body{margin:0}main{max-width:560px;padding:20px;margin:0 auto}h1{font-size:16px;margin:0 0 16px;font-weight:600}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:24px;align-items:start}.label{display:block;font-weight:600;font-size:12px;margin-bottom:6px}textarea,input[type=text],select{font:inherit;width:100%;border:1px solid #b9c1bb;border-radius:4px;padding:7px 9px;background:#fff;color:inherit}textarea{resize:vertical;min-height:58px;font-size:16px;line-height:1.4}textarea:focus,input:focus,select:focus,button:focus-visible{outline:2px solid #176b50;outline-offset:2px}.helper{font-size:10px;color:#68746c;line-height:1.6}.helper:has(span){display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px}.helper output{white-space:nowrap}fieldset{border:0;padding:0;margin:16px 0}.colors{display:flex;gap:16px}.colors label{display:flex;align-items:center;gap:6px;font-size:12px}input[type=color]{width:30px;height:28px;padding:2px;border:1px solid #b9c1bb;background:none;cursor:pointer}.swatches{display:flex;gap:8px;margin:10px 0}.swatches button{width:20px;height:20px;border:1px solid #bbc2ba;border-radius:50%;cursor:pointer}.check{font-size:12px;display:flex;align-items:center;gap:6px}input[type=checkbox]{accent-color:#176b50}#error{font-size:11px;color:#aa3128;margin:8px 0}#error:empty{display:none}.stage{width:96px;height:96px;display:grid;place-items:center;border:1px solid #cdd4c4;border-radius:3px}.checker{background-color:#fff;background-image:conic-gradient(#e8eae4 25%,transparent 0 50%,#e8eae4 0 75%,transparent 0);background-size:12px 12px}#large{width:80px;height:80px;object-fit:contain}img:not([src]){visibility:hidden}.samples{display:flex;gap:8px;margin-top:8px}.samples>div>span{font-size:10px;color:#68746c}.sample{display:grid;place-items:center;margin-top:3px;width:36px;height:32px;border-radius:3px}.light{background:white;border:1px solid #e0e3dd}.dark{background:#24282d}.small{width:22px;height:22px}#size{margin:8px 0}#generate{width:100%;border:0;border-radius:4px;background:#176b50;color:white;padding:9px;font:inherit;cursor:pointer}#generate:disabled{opacity:.4;cursor:default}#result{display:block;font-size:11px;line-height:1.6;margin-top:8px;overflow-wrap:anywhere}@media(max-width:400px){main{padding:12px}.workspace{grid-template-columns:minmax(0,1fr) 110px;gap:12px}}\n\n.font-label{margin-top:12px}select{font-size:12px;padding:7px 9px}\n\n.stretch-option{margin-top:10px}\n\n.colors{flex-wrap:wrap;gap:10px}.color-control{flex:1;min-width:112px}.color-control>label{display:block;margin-bottom:4px;font-size:12px}.color-fields{display:flex;align-items:center;gap:5px}.color-fields input[type=text]{width:90px;min-width:0;padding:5px;font:12px ui-monospace,monospace}.color-fields input[type=color]{flex-shrink:0}input[aria-invalid=true]{border-color:#aa3128}input:disabled{opacity:.5}\n\n:host{display:block;color:#26352f;font:13px \"Hiragino Kaku Gothic ProN\",sans-serif;background:#f7f7f4;border:1px solid #d4d9d4;border-radius:4px;margin:12px 0}main{margin:0;padding:16px;max-width:none}" );addEventListener('pagehide',stop,{once:true});}
 })();

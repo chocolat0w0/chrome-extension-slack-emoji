@@ -8,3 +8,8 @@ export function validate(text) {
  if(lines.some(line=>graphemes(line).length>12)) errors.push('1行は12文字までにしてください。');
  return errors;
 }
+export function normalizeHex(value){
+ const hex=value.trim().replace(/^#/,'');
+ if(/^[0-9a-f]{3}$/i.test(hex))return '#'+[...hex].map(c=>c+c).join('').toLowerCase();
+ return /^[0-9a-f]{6}$/i.test(hex)?'#'+hex.toLowerCase():null;
+}

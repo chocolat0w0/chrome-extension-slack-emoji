@@ -36,3 +36,10 @@ test('finds actual vertical ink bounds, including faint edge pixels',async()=>{
  pixels[(1*4+2)*4+3]=1;pixels[(4*4+1)*4+3]=255;
  assert.deepEqual(verticalInkBounds(pixels,4,6),{top:1,height:4});
 });
+test('normalizes freely specified HEX colors and rejects incomplete values',async()=>{
+ const {normalizeHex}=await import('../src/editor/model.js');
+ assert.equal(normalizeHex('#EC71A1'),'#ec71a1');
+ assert.equal(normalizeHex('  f80 '),'#ff8800');
+ assert.equal(normalizeHex('#123456'),'#123456');
+ for(const invalid of ['','#12','red','#gggggg','#12345678'])assert.equal(normalizeHex(invalid),null);
+});
