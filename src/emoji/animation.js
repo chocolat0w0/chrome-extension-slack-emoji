@@ -17,7 +17,7 @@ export function renderAnimation(layer,{foreground,background,transparent,animati
   if(animation==='pop'){
    const size=128*(.55+.29*Math.sin(Math.PI*t)),margin=(128-size)/2;ctx.drawImage(layer,margin,margin,size,size);
   }
-  if(animation==='blink'&&i<10)ctx.drawImage(layer,0,0,128,128);
+  if((animation==='blink'&&i<10)||(animation==='blink-fast'&&i%10<5))ctx.drawImage(layer,0,0,128,128);
   const rgba=ctx.getImageData(0,0,128,128).data,pixels=new Uint8Array(128*128);
   // 32 edge shades keep antialiasing while avoiding hundreds of near-identical
   // colors that inflate animated text. Endpoints retain exact foreground/background.

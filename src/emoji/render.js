@@ -6,7 +6,7 @@ import {validate} from '../editor/model.js';
 import {renderAnimation} from './animation.js';
 export async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic-bold',align='center',stretchVertical=true,animation='none',frame='none'}) {
  const errors=validate(text); if(errors.length) throw new Error(errors.join(' '));
- if(!['none','bounce','shake','pop','blink'].includes(animation))throw Error('アニメーションを選び直してください。');
+ if(!['none','bounce','shake','pop','blink','blink-fast'].includes(animation))throw Error('アニメーションを選び直してください。');
  const area=frameLayout(frame);
  await ensureWebFont(fontId,text);
  const canvas=document.createElement('canvas'); canvas.width=canvas.height=128;

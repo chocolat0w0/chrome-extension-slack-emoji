@@ -177,7 +177,7 @@ function renderAnimation(layer,{foreground,background,transparent,animation}){
   if(animation==='pop'){
    const size=128*(.55+.29*Math.sin(Math.PI*t)),margin=(128-size)/2;ctx.drawImage(layer,margin,margin,size,size);
   }
-  if(animation==='blink'&&i<10)ctx.drawImage(layer,0,0,128,128);
+  if((animation==='blink'&&i<10)||(animation==='blink-fast'&&i%10<5))ctx.drawImage(layer,0,0,128,128);
   const rgba=ctx.getImageData(0,0,128,128).data,pixels=new Uint8Array(128*128);
   // 32 edge shades keep antialiasing while avoiding hundreds of near-identical
   // colors that inflate animated text. Endpoints retain exact foreground/background.
@@ -218,7 +218,7 @@ function drawFrame(ctx,frame,color){
 
 async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic-bold',align='center',stretchVertical=true,animation='none',frame='none'}) {
  const errors=validate(text); if(errors.length) throw new Error(errors.join(' '));
- if(!['none','bounce','shake','pop','blink'].includes(animation))throw Error('アニメーションを選び直してください。');
+ if(!['none','bounce','shake','pop','blink','blink-fast'].includes(animation))throw Error('アニメーションを選び直してください。');
  const area=frameLayout(frame);
  await ensureWebFont(fontId,text);
  const canvas=document.createElement('canvas'); canvas.width=canvas.height=128;
@@ -278,7 +278,7 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <label class="label font-label" for="frame">フレーム</label>
 <select id="frame"><option value="none">なし</option><option value="circle">丸囲み</option><option value="double-circle">二重丸</option><option value="rays">集中線</option></select>
 <label class="label font-label" for="animation">アニメーション</label>
-<select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（GIF）</option><option value="shake">ぶるぶる（GIF）</option><option value="pop">ポップ（GIF）</option><option value="blink">点滅（GIF）</option></select>
+<select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（GIF）</option><option value="shake">ぶるぶる（GIF）</option><option value="pop">ポップ（GIF）</option><option value="blink">点滅（GIF）</option><option value="blink-fast">点滅・速い（GIF）</option></select>
 <label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばして埋める</label>
 <fieldset><legend class="label">色</legend>
 <div class="colors">

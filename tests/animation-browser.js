@@ -34,7 +34,7 @@ export async function verifyAnimation(){
   }finally{decoder.close();}
   results.push({transparent,bytes:blob.size,frames:20});
  }
- for(const animation of ['shake','pop','blink'])for(const transparent of [false,true]){
+ for(const animation of ['shake','pop','blink','blink-fast'])for(const transparent of [false,true]){
   const {blob}=await renderEmoji({text:'確認',foreground:'#176b50',background:'#ffffff',transparent,animation});
   check(blob.type==='image/gif'&&blob.size<128000,animation+' GIF type/size');
   const decoder=await openGif(blob),bounds=[];
@@ -48,6 +48,7 @@ export async function verifyAnimation(){
    }
    if(animation==='shake')check(Math.max(...bounds.map(b=>b.left))-Math.min(...bounds.map(b=>b.left))>=4,'shake moves horizontally');
    if(animation==='pop')check(Math.max(...bounds.map(b=>b.right-b.left))-Math.min(...bounds.map(b=>b.right-b.left))>=10,'pop changes scale');
+   if(animation==='blink-fast')check(bounds.map(b=>b.right>=0).every((visible,i)=>visible===(i%10<5)),'fast blink alternates twice per loop');
    if(animation==='blink')check(bounds.some(b=>b.right<0)&&bounds.some(b=>b.right>=0),'blink shows and hides text');
   }finally{decoder.close();}
   results.push({animation,transparent,bytes:blob.size});
