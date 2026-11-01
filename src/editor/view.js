@@ -26,9 +26,7 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <p id="error" role="alert"></p>
 </form>
 <aside class="preview">
-<span class="label">プレビュー</span>
-<div class="stage checker"><img id="large" alt="作成した絵文字のプレビュー"></div>
-<div class="samples"><div><span>明</span><div class="sample light"><img class="small" alt="明るい背景での絵文字"></div></div><div><span>暗</span><div class="sample dark"><img class="small" alt="暗い背景での絵文字"></div></div></div>
+<div class="samples"><div><span>明</span><div class="sample light"><img alt="明るい背景での絵文字"></div></div><div><span>暗</span><div class="sample dark"><img alt="暗い背景での絵文字"></div></div></div>
 <p id="loading" class="helper" role="status"></p>
 <p id="size" class="helper" aria-live="polite"></p>
 <button id="generate" type="button">PNGを生成</button>
