@@ -41,8 +41,7 @@ const FONT_PRESETS = [
  {id:'gothic',label:'ゴシック体',weight:700,stroke:0.025,googleFamily:'Noto Sans JP',family:'"SlackEmojiWebGothic"'},
  {id:'gothic-bold',label:'太いゴシック体',weight:900,stroke:0.055,googleFamily:'Noto Sans JP',family:'"SlackEmojiWebGothicBold"'},
  {id:'mincho',label:'明朝体',weight:900,stroke:0.025,googleFamily:'Noto Serif JP',family:'"SlackEmojiWebMincho"'},
- {id:'rounded',label:'丸文字',weight:900,stroke:0.025,googleFamily:'M PLUS Rounded 1c',family:'"SlackEmojiWebMaru"'},
- {id:'pop',label:'ポップ',weight:400,stroke:0.025,googleFamily:'Mochiy Pop One',family:'"SlackEmojiWebPop"'}
+ {id:'rounded',label:'丸文字',weight:900,stroke:0.025,googleFamily:'M PLUS Rounded 1c',family:'"SlackEmojiWebMaru"'}
 ];
 function canvasFont(id='gothic-bold',size) {
  const preset=FONT_PRESETS.find(p=>p.id===id);
@@ -188,10 +187,10 @@ async function renderEmoji({text,foreground,background,transparent,font:fontId='
  const ctx=canvas.getContext('2d'); if(!ctx) throw new Error('Canvasを利用できません。');
  const font=size=>canvasFont(fontId,size);
  const fit=fitText(text.replace(/\r\n?/g,'\n').split('\n'),(line,size)=>{
-  ctx.font=font(size);const m=ctx.measureText(line),pad=fontStrokeWidth(fontId,size)/2;
+  ctx.font=font(size);ctx.letterSpacing=`${-size*.08}px`;const m=ctx.measureText(line),pad=fontStrokeWidth(fontId,size)/2;
   return {width:m.width,actualBoundingBoxLeft:m.actualBoundingBoxLeft+pad,actualBoundingBoxRight:m.actualBoundingBoxRight+pad,actualBoundingBoxAscent:(m.actualBoundingBoxAscent||size*.8)+pad,actualBoundingBoxDescent:(m.actualBoundingBoxDescent||size*.2)+pad};
  },align);
- ctx.font=font(fit.size);ctx.fillStyle=foreground;ctx.textBaseline='alphabetic';
+ ctx.font=font(fit.size);ctx.letterSpacing=`${-fit.size*.08}px`;ctx.fillStyle=foreground;ctx.textBaseline='alphabetic';
  ctx.strokeStyle=foreground;ctx.lineWidth=fontStrokeWidth(fontId,fit.size);ctx.lineJoin='round';
  if(stretchVertical){
   let top=Infinity,bottom=-Infinity;
@@ -257,17 +256,18 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 const el=id=>app.querySelector('#'+id);
 for(const preset of FONT_PRESETS){const option=document.createElement('option');option.value=preset.id;option.textContent=preset.label;el('font').append(option);}
 el('font').value='gothic-bold';
-for(const [color,label] of [['#176b50','緑'],['#ff0000','赤'],['#1111ff','青'],['#3ab0c7','水色'],['#ec71a1','ピンク'],['#00bb00','明るい緑'],['#252b38','墨'],['#ffffff','白'],['#d98a00','黄']]){
+for(const [color,label] of [['#3ab0c7','水色'],['#176b50','緑'],['#ff0000','赤'],['#1111ff','青'],['#ec71a1','ピンク'],['#00bb00','明るい緑'],['#d98a00','黄'],['#252b38','墨'],['#ffffff','白']]){
  const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;el('foregroundHex').value=color;update();});app.querySelector('.swatches').append(button);
 }
 for(const id of ['text','foreground','background','name','font','align','animation'])if(initial[id]!==undefined)el(id).value=initial[id];
+if(!el('font').value)el('font').value='gothic-bold';
 for(const id of ['transparent','stretchVertical'])if(initial[id]!==undefined)el(id).checked=initial[id];
 for(const id of ['foreground','background'])el(id+'Hex').value=initial[id]??el(id).value;
 if(onGenerate)el('generate').textContent='登録欄に反映';
-let revision=0, current=null, url=null;
+let revision=0, editRevision=0, current=null, url=null;
 function values(){return {animation:el('animation').value,stretchVertical:el('stretchVertical').checked,align:el('align').value,font:el('font').value,text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:el('transparent').checked};}
 async function update(){
- const ticket=++revision;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
+ const ticket=++revision;editRevision++;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
  onDraft({...values(),name:el('name').value});
  if(!onGenerate)el('generate').textContent=el('animation').value==='bounce'?'GIFを生成':'PNGを生成';
  el('background').disabled=el('backgroundHex').disabled=el('transparent').checked;
@@ -289,6 +289,7 @@ async function update(){
 }
 el('editor').addEventListener('submit',e=>e.preventDefault());
 el('editor').addEventListener('input',event=>{
+ if(event.target===el('name')){editRevision++;onDraft({...values(),name:el('name').value});if(!busy)el('result').textContent=reflected?'変更を登録欄に反映してください。':'';return;}
  for(const id of ['foreground','background']){
   if(event.target===el(id))el(id+'Hex').value=el(id).value;
   if(event.target===el(id+'Hex')){const color=normalizeHex(el(id+'Hex').value);if(color)el(id).value=color;}
@@ -300,10 +301,10 @@ el('generate').addEventListener('click',async ()=>{
  const name=el('name').value.trim();if(!name){el('result').textContent='Slackでの名前を入力してください。';el('name').focus();return;}
  const extension=current.type==='image/gif'?'gif':'png';
  const file=new File([current],`${name}.${extension}`,{type:current.type});
- const ticket=revision;
+ const ticket=editRevision;
  if(onGenerate){
   busy=true;el('generate').disabled=true;el('result').textContent='反映中…';
-  try{await onGenerate(file,name);reflected=true;if(!disposed)el('result').textContent=ticket===revision?'登録欄に反映済み。Slackの「保存する」で登録してください。':'変更を登録欄に反映してください。';}
+  try{await onGenerate(file,name);reflected=true;if(!disposed)el('result').textContent=ticket===editRevision?'登録欄に反映済み。Slackの「保存する」で登録してください。':'変更を登録欄に反映してください。';}
   catch(error){if(!disposed)el('result').textContent=error.message;}
   finally{busy=false;if(!disposed)el('generate').disabled=!current;}
  }else{
@@ -350,13 +351,18 @@ async function transferEmoji(target,file,name,{scope=document,timeout=3500}={}) 
 }
 
 function startIntegration(scope=document,styles='') {
- let host=null,dispose=null,activeBody=null,draft={},scheduled=false;
- const clear=()=>{dispose?.();dispose=null;host?.remove();host=null;activeBody=null;};
+ let host=null,dispose=null,activeBody=null,restoreBody=null,draft={},scheduled=false;
+ const clear=()=>{dispose?.();dispose=null;host?.remove();host=null;restoreBody?.();restoreBody=null;activeBody=null;};
  const sync=()=>{
   scheduled=false;const form=findSlackForm(scope);
   if(form?.body===activeBody&&host?.isConnected)return;
   clear();if(!form)return;
-  activeBody=form.body;host=document.createElement('div');host.dataset.slackEmojiEditor='';
+  activeBody=form.body;
+  const properties=['max-height','overflow-x','overflow-y'];
+  const previous=properties.map(p=>[p,form.body.style.getPropertyValue(p),form.body.style.getPropertyPriority(p)]);
+  restoreBody=()=>{for(const [p,value,priority] of previous){if(value)form.body.style.setProperty(p,value,priority);else form.body.style.removeProperty(p);}};
+  form.body.style.setProperty('max-height','65vh');form.body.style.setProperty('overflow-x','auto');form.body.style.setProperty('overflow-y','auto');
+  host=document.createElement('div');host.dataset.slackEmojiEditor='';
   const root=host.attachShadow({mode:'open'}),style=document.createElement('style');style.textContent=styles;
   const app=document.createElement('main');root.append(style,app);form.body.prepend(host);
   dispose=mountEditor(app,{initial:draft,onDraft:value=>{draft=value;},onGenerate:(file,name)=>transferEmoji(form,file,name,{scope})});

@@ -37,17 +37,18 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 const el=id=>app.querySelector('#'+id);
 for(const preset of FONT_PRESETS){const option=document.createElement('option');option.value=preset.id;option.textContent=preset.label;el('font').append(option);}
 el('font').value='gothic-bold';
-for(const [color,label] of [['#176b50','緑'],['#ff0000','赤'],['#1111ff','青'],['#3ab0c7','水色'],['#ec71a1','ピンク'],['#00bb00','明るい緑'],['#252b38','墨'],['#ffffff','白'],['#d98a00','黄']]){
+for(const [color,label] of [['#3ab0c7','水色'],['#176b50','緑'],['#ff0000','赤'],['#1111ff','青'],['#ec71a1','ピンク'],['#00bb00','明るい緑'],['#d98a00','黄'],['#252b38','墨'],['#ffffff','白']]){
  const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;el('foregroundHex').value=color;update();});app.querySelector('.swatches').append(button);
 }
 for(const id of ['text','foreground','background','name','font','align','animation'])if(initial[id]!==undefined)el(id).value=initial[id];
+if(!el('font').value)el('font').value='gothic-bold';
 for(const id of ['transparent','stretchVertical'])if(initial[id]!==undefined)el(id).checked=initial[id];
 for(const id of ['foreground','background'])el(id+'Hex').value=initial[id]??el(id).value;
 if(onGenerate)el('generate').textContent='登録欄に反映';
-let revision=0, current=null, url=null;
+let revision=0, editRevision=0, current=null, url=null;
 function values(){return {animation:el('animation').value,stretchVertical:el('stretchVertical').checked,align:el('align').value,font:el('font').value,text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:el('transparent').checked};}
 async function update(){
- const ticket=++revision;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
+ const ticket=++revision;editRevision++;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
  onDraft({...values(),name:el('name').value});
  if(!onGenerate)el('generate').textContent=el('animation').value==='bounce'?'GIFを生成':'PNGを生成';
  el('background').disabled=el('backgroundHex').disabled=el('transparent').checked;
@@ -69,6 +70,7 @@ async function update(){
 }
 el('editor').addEventListener('submit',e=>e.preventDefault());
 el('editor').addEventListener('input',event=>{
+ if(event.target===el('name')){editRevision++;onDraft({...values(),name:el('name').value});if(!busy)el('result').textContent=reflected?'変更を登録欄に反映してください。':'';return;}
  for(const id of ['foreground','background']){
   if(event.target===el(id))el(id+'Hex').value=el(id).value;
   if(event.target===el(id+'Hex')){const color=normalizeHex(el(id+'Hex').value);if(color)el(id).value=color;}
@@ -80,10 +82,10 @@ el('generate').addEventListener('click',async ()=>{
  const name=el('name').value.trim();if(!name){el('result').textContent='Slackでの名前を入力してください。';el('name').focus();return;}
  const extension=current.type==='image/gif'?'gif':'png';
  const file=new File([current],`${name}.${extension}`,{type:current.type});
- const ticket=revision;
+ const ticket=editRevision;
  if(onGenerate){
   busy=true;el('generate').disabled=true;el('result').textContent='反映中…';
-  try{await onGenerate(file,name);reflected=true;if(!disposed)el('result').textContent=ticket===revision?'登録欄に反映済み。Slackの「保存する」で登録してください。':'変更を登録欄に反映してください。';}
+  try{await onGenerate(file,name);reflected=true;if(!disposed)el('result').textContent=ticket===editRevision?'登録欄に反映済み。Slackの「保存する」で登録してください。':'変更を登録欄に反映してください。';}
   catch(error){if(!disposed)el('result').textContent=error.message;}
   finally{busy=false;if(!disposed)el('generate').disabled=!current;}
  }else{

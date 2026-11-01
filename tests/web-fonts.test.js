@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fontCssUrl,parseFontCss,rangeContains} from '../src/emoji/font-network.js';
 test('Google request contains only family/weight and never input text',()=>{
- for(const [id,family] of [['rounded','M PLUS Rounded 1c:wght@900'],['pop','Mochiy Pop One:wght@400']]){const url=new URL(fontCssUrl(id));assert.equal(url.origin,'https://fonts.googleapis.com');assert.equal(url.searchParams.get('family'),family);assert.equal(url.searchParams.has('text'),false);}assert.throws(()=>fontCssUrl('bad'));
+ for(const [id,family] of [['rounded','M PLUS Rounded 1c:wght@900']]){const url=new URL(fontCssUrl(id));assert.equal(url.origin,'https://fonts.googleapis.com');assert.equal(url.searchParams.get('family'),family);assert.equal(url.searchParams.has('text'),false);}assert.throws(()=>fontCssUrl('bad'));
 });
 test('parses only HTTPS gstatic font resources and unicode ranges',()=>{
  const css='@font-face {src: url(https://fonts.gstatic.com/s/example/font.woff2) format("woff2"); unicode-range: U+3040-309F,U+4E00;}';
