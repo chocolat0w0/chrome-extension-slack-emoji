@@ -1,6 +1,14 @@
 import {renderEmoji} from '../src/emoji/render.js';
 import {FONT_PRESETS} from '../src/emoji/fonts.js';
 export async function verifyAlignment(){
+ const originalMeasure=CanvasRenderingContext2D.prototype.measureText,originalFill=CanvasRenderingContext2D.prototype.fillText;
+ const measured=[],drawn=[];
+ try{
+  CanvasRenderingContext2D.prototype.measureText=function(...args){measured.push(parseFloat(this.letterSpacing));return originalMeasure.apply(this,args);};
+  CanvasRenderingContext2D.prototype.fillText=function(...args){drawn.push(parseFloat(this.letterSpacing));return originalFill.apply(this,args);};
+  await renderEmoji({text:'文字間',font:'gothic-bold',foreground:'#111111',transparent:true});
+  if(!measured.length||!drawn.length||measured.some(n=>!(n<0))||drawn.some(n=>!(n<0))||measured.at(-1)!==drawn.at(-1))throw Error('文字間が計測と描画に反映されていません');
+ }finally{CanvasRenderingContext2D.prototype.measureText=originalMeasure;CanvasRenderingContext2D.prototype.fillText=originalFill;}
  const results=[];
  for(const font of FONT_PRESETS){for(const align of ['center','left','right']){
   const {canvas,blob}=await renderEmoji({text:'確認済\n済',font:font.id,align,foreground:'#111111',background:'#ffffff',transparent:true});

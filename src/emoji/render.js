@@ -9,10 +9,10 @@ export async function renderEmoji({text,foreground,background,transparent,font:f
  const ctx=canvas.getContext('2d'); if(!ctx) throw new Error('Canvasを利用できません。');
  const font=size=>canvasFont(fontId,size);
  const fit=fitText(text.replace(/\r\n?/g,'\n').split('\n'),(line,size)=>{
-  ctx.font=font(size);const m=ctx.measureText(line),pad=fontStrokeWidth(fontId,size)/2;
+  ctx.font=font(size);ctx.letterSpacing=`${-size*.08}px`;const m=ctx.measureText(line),pad=fontStrokeWidth(fontId,size)/2;
   return {width:m.width,actualBoundingBoxLeft:m.actualBoundingBoxLeft+pad,actualBoundingBoxRight:m.actualBoundingBoxRight+pad,actualBoundingBoxAscent:(m.actualBoundingBoxAscent||size*.8)+pad,actualBoundingBoxDescent:(m.actualBoundingBoxDescent||size*.2)+pad};
  },align);
- ctx.font=font(fit.size);ctx.fillStyle=foreground;ctx.textBaseline='alphabetic';
+ ctx.font=font(fit.size);ctx.letterSpacing=`${-fit.size*.08}px`;ctx.fillStyle=foreground;ctx.textBaseline='alphabetic';
  ctx.strokeStyle=foreground;ctx.lineWidth=fontStrokeWidth(fontId,fit.size);ctx.lineJoin='round';
  if(stretchVertical){
   let top=Infinity,bottom=-Infinity;
