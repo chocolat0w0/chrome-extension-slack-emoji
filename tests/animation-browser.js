@@ -34,6 +34,24 @@ export async function verifyAnimation(){
   }finally{decoder.close();}
   results.push({transparent,bytes:blob.size,frames:20});
  }
+ for(const animation of ['shake','pop','blink'])for(const transparent of [false,true]){
+  const {blob}=await renderEmoji({text:'確認',foreground:'#176b50',background:'#ffffff',transparent,animation});
+  check(blob.type==='image/gif'&&blob.size<128000,animation+' GIF type/size');
+  const decoder=await openGif(blob),bounds=[];
+  try{
+   check(decoder.tracks.selectedTrack.frameCount===20&&decoder.tracks.selectedTrack.repetitionCount===Infinity,animation+' frames/loop');
+   for(let frameIndex=0;frameIndex<20;frameIndex++){
+    const {image}=await decoder.decode({frameIndex});check(image.duration===60000,animation+' duration');const pixels=pixelsOf(image);image.close();
+    let left=128,right=-1,top=128,bottom=-1;
+    for(let p=0;p<128*128;p++)if(transparent?pixels[p*4+3]>0:pixels[p*4]!==255){const x=p%128,y=Math.floor(p/128);left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}
+    bounds.push({left,right,top,bottom});
+   }
+   if(animation==='shake')check(Math.max(...bounds.map(b=>b.left))-Math.min(...bounds.map(b=>b.left))>=4,'shake moves horizontally');
+   if(animation==='pop')check(Math.max(...bounds.map(b=>b.right-b.left))-Math.min(...bounds.map(b=>b.right-b.left))>=10,'pop changes scale');
+   if(animation==='blink')check(bounds.some(b=>b.right<0)&&bounds.some(b=>b.right>=0),'blink shows and hides text');
+  }finally{decoder.close();}
+  results.push({animation,transparent,bytes:blob.size});
+ }
  const longText=Array(4).fill('確認しました確認しました').join('\n');
  for(const text of ['ABCDEFGHIJKL',longText]){
   const {blob}=await renderEmoji({text,foreground:'#ec71a1',background:'#123456',transparent:false,animation:'bounce'});

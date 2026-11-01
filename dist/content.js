@@ -159,7 +159,7 @@ function encodeGif({width,height,palette,frames,transparent=false,delay=6}){
  bytes.push(0x3b);return new Blob([Uint8Array.from(bytes)],{type:'image/gif'});
 }
 
-function renderBounce(layer,{foreground,background,transparent}){
+function renderAnimation(layer,{foreground,background,transparent,animation}){
  const rgb=hex=>[1,3,5].map(offset=>parseInt(hex.slice(offset,offset+2),16));
  const ink=rgb(foreground),paper=transparent?ink:rgb(background),palette=new Uint8Array(768);
  // A two-color gradient preserves the exact selected colors and opaque edges.
@@ -168,8 +168,16 @@ function renderBounce(layer,{foreground,background,transparent}){
  const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)throw Error('Canvasを利用できません。');
  const frames=[];
  for(let i=0;i<20;i++){
-  const t=i/20,y=25.6-20*4*t*(1-t);
-  ctx.clearRect(0,0,128,128);ctx.drawImage(layer,12.8,y,102.4,102.4);
+  const t=i/20;
+  ctx.clearRect(0,0,128,128);
+  if(animation==='bounce')ctx.drawImage(layer,12.8,25.6-20*4*t*(1-t),102.4,102.4);
+  if(animation==='shake'){
+   const offsets=[0,4,-4,3,-3];ctx.drawImage(layer,12.8+offsets[i%offsets.length],12.8,102.4,102.4);
+  }
+  if(animation==='pop'){
+   const size=128*(.55+.29*Math.sin(Math.PI*t)),margin=(128-size)/2;ctx.drawImage(layer,margin,margin,size,size);
+  }
+  if(animation==='blink'&&i<10)ctx.drawImage(layer,0,0,128,128);
   const rgba=ctx.getImageData(0,0,128,128).data,pixels=new Uint8Array(128*128);
   // 32 edge shades keep antialiasing while avoiding hundreds of near-identical
   // colors that inflate animated text. Endpoints retain exact foreground/background.
@@ -210,7 +218,7 @@ function drawFrame(ctx,frame,color){
 
 async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic-bold',align='center',stretchVertical=true,animation='none',frame='none'}) {
  const errors=validate(text); if(errors.length) throw new Error(errors.join(' '));
- if(!['none','bounce'].includes(animation))throw Error('アニメーションを選び直してください。');
+ if(!['none','bounce','shake','pop','blink'].includes(animation))throw Error('アニメーションを選び直してください。');
  const area=frameLayout(frame);
  await ensureWebFont(fontId,text);
  const canvas=document.createElement('canvas'); canvas.width=canvas.height=128;
@@ -249,9 +257,9 @@ async function renderEmoji({text,foreground,background,transparent,font:fontId='
  const out=output.getContext('2d');if(!out)throw new Error('Canvasを利用できません。');
  if(!transparent){out.fillStyle=background;out.fillRect(0,0,128,128);}
  out.drawImage(layer,0,0);
- const blob=animation==='bounce'?renderBounce(layer,{foreground,background,transparent}):await new Promise(resolve=>output.toBlob(resolve,'image/png'));
+ const blob=animation!=='none'?renderAnimation(layer,{foreground,background,transparent,animation}):await new Promise(resolve=>output.toBlob(resolve,'image/png'));
  if(!blob) throw new Error('画像を生成できませんでした。');
- if(blob.size>=128000) throw new Error(animation==='bounce'?'GIFが128,000バイト以上です。文字数を減らすか、背景を透明にしてください。':'画像が128,000バイト以上です。');
+ if(blob.size>=128000) throw new Error(animation!=='none'?'GIFが128,000バイト以上です。文字数を減らすか、背景を透明にしてください。':'画像が128,000バイト以上です。');
  return {canvas:output,blob};
 }
 
@@ -270,11 +278,11 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <label class="label font-label" for="frame">フレーム</label>
 <select id="frame"><option value="none">なし</option><option value="circle">丸囲み</option><option value="double-circle">二重丸</option><option value="rays">集中線</option></select>
 <label class="label font-label" for="animation">アニメーション</label>
-<select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（実験・GIF）</option></select>
+<select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（GIF）</option><option value="shake">ぶるぶる（GIF）</option><option value="pop">ポップ（GIF）</option><option value="blink">点滅（GIF）</option></select>
 <label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばして埋める</label>
 <fieldset><legend class="label">色</legend>
 <div class="colors">
-<div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#176b50"><input id="foregroundHex" type="text" value="#176b50" aria-label="文字色のHEXコード" placeholder="#176b50" spellcheck="false" autocomplete="off"></div></div>
+<div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#3ab0c7"><input id="foregroundHex" type="text" value="#3ab0c7" aria-label="文字色のHEXコード" placeholder="#3ab0c7" spellcheck="false" autocomplete="off"></div></div>
 <div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffffff"><input id="backgroundHex" type="text" value="#ffffff" aria-label="背景色のHEXコード" placeholder="#ffffff" spellcheck="false" autocomplete="off"></div></div>
 </div>
 <div class="swatches" aria-label="文字色プリセット"></div>
@@ -310,7 +318,7 @@ async function update(){
  el('align').disabled=el('frame').value!=='none';
  el('align').value=el('align').disabled?'center':preferredAlign;
  onDraft({...values(),name:el('name').value});
- if(!onGenerate)el('generate').textContent=el('animation').value==='bounce'?'GIFを生成':'PNGを生成';
+ if(!onGenerate)el('generate').textContent=el('animation').value!=='none'?'GIFを生成':'PNGを生成';
  el('background').disabled=el('backgroundHex').disabled=el('transparent').checked;
  const lines=el('text').value.split('\n');el('counter').textContent=`${lines.length}行 / 最長${Math.max(...lines.map(s=>graphemes(s).length))}文字`;
  const errors=validate(el('text').value);

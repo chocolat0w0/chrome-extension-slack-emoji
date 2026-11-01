@@ -16,11 +16,11 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <label class="label font-label" for="frame">フレーム</label>
 <select id="frame"><option value="none">なし</option><option value="circle">丸囲み</option><option value="double-circle">二重丸</option><option value="rays">集中線</option></select>
 <label class="label font-label" for="animation">アニメーション</label>
-<select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（実験・GIF）</option></select>
+<select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（GIF）</option><option value="shake">ぶるぶる（GIF）</option><option value="pop">ポップ（GIF）</option><option value="blink">点滅（GIF）</option></select>
 <label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばして埋める</label>
 <fieldset><legend class="label">色</legend>
 <div class="colors">
-<div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#176b50"><input id="foregroundHex" type="text" value="#176b50" aria-label="文字色のHEXコード" placeholder="#176b50" spellcheck="false" autocomplete="off"></div></div>
+<div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#3ab0c7"><input id="foregroundHex" type="text" value="#3ab0c7" aria-label="文字色のHEXコード" placeholder="#3ab0c7" spellcheck="false" autocomplete="off"></div></div>
 <div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffffff"><input id="backgroundHex" type="text" value="#ffffff" aria-label="背景色のHEXコード" placeholder="#ffffff" spellcheck="false" autocomplete="off"></div></div>
 </div>
 <div class="swatches" aria-label="文字色プリセット"></div>
@@ -56,7 +56,7 @@ async function update(){
  el('align').disabled=el('frame').value!=='none';
  el('align').value=el('align').disabled?'center':preferredAlign;
  onDraft({...values(),name:el('name').value});
- if(!onGenerate)el('generate').textContent=el('animation').value==='bounce'?'GIFを生成':'PNGを生成';
+ if(!onGenerate)el('generate').textContent=el('animation').value!=='none'?'GIFを生成':'PNGを生成';
  el('background').disabled=el('backgroundHex').disabled=el('transparent').checked;
  const lines=el('text').value.split('\n');el('counter').textContent=`${lines.length}行 / 最長${Math.max(...lines.map(s=>graphemes(s).length))}文字`;
  const errors=validate(el('text').value);
