@@ -10,7 +10,8 @@ function validate(text) {
  return errors;
 }
 
-function fitText(texts, measure) {
+function fitText(texts, measure, align='center') {
+ if(!['center','left','right'].includes(align))throw Error('文字揃えを選び直してください。');
  // Each line uses its actual ink bounds, not only advance width.
  for(let size=112;size>=1;size--) {
   const metrics=texts.map(text=>{
@@ -20,9 +21,14 @@ function fitText(texts, measure) {
   const gap=size*.12, height=metrics.reduce((n,m)=>n+m.ascent+m.descent,0)+gap*(texts.length-1);
   if(height>112 || metrics.some(m=>m.left+m.right>112)) continue;
   let top=(128-height)/2;
-  return {size,lines:metrics.map(m=>{const line={...m,x:(128-m.left-m.right)/2+m.left,y:top+m.ascent};top+=m.ascent+m.descent+gap;return line;})};
+  return {size,lines:metrics.map(m=>{const line={...m,x:align==='left'?8+m.left:align==='right'?120-m.right:(128-m.left-m.right)/2+m.left,y:top+m.ascent};top+=m.ascent+m.descent+gap;return line;})};
  }
  throw new Error('文字を描画領域に配置できませんでした。');
+}
+function verticalInkBounds(pixels,width,height){
+ let top=height,bottom=-1;
+ for(let y=0;y<height;y++)for(let x=0;x<width;x++)if(pixels[(y*width+x)*4+3]){top=Math.min(top,y);bottom=Math.max(bottom,y);}
+ return bottom<0?null:{top,height:bottom-top+1};
 }
 
 // Google Fonts are fetched on use; aliases prevent accidental local-font substitution.
@@ -110,7 +116,7 @@ async function ensureWebFont(id,text){
  }catch{throw Error('フォントを取得できませんでした。通信環境や入力文字を確認して、再度お試しください。');}
 }
 
-async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic-bold'}) {
+async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic-bold',align='center',stretchVertical=true}) {
  const errors=validate(text); if(errors.length) throw new Error(errors.join(' '));
  await ensureWebFont(fontId,text);
  const canvas=document.createElement('canvas'); canvas.width=canvas.height=128;
@@ -119,15 +125,20 @@ async function renderEmoji({text,foreground,background,transparent,font:fontId='
  const fit=fitText(text.replace(/\r\n?/g,'\n').split('\n'),(line,size)=>{
   ctx.font=font(size);const m=ctx.measureText(line),pad=fontStrokeWidth(fontId,size)/2;
   return {width:m.width,actualBoundingBoxLeft:m.actualBoundingBoxLeft+pad,actualBoundingBoxRight:m.actualBoundingBoxRight+pad,actualBoundingBoxAscent:(m.actualBoundingBoxAscent||size*.8)+pad,actualBoundingBoxDescent:(m.actualBoundingBoxDescent||size*.2)+pad};
- });
- if(!transparent){ctx.fillStyle=background;ctx.fillRect(0,0,128,128);}
+ },align);
  ctx.font=font(fit.size);ctx.fillStyle=foreground;ctx.textBaseline='alphabetic';
  ctx.strokeStyle=foreground;ctx.lineWidth=fontStrokeWidth(fontId,fit.size);ctx.lineJoin='round';
  fit.lines.forEach(line=>{ctx.strokeText(line.text,line.x,line.y);ctx.fillText(line.text,line.x,line.y);});
- const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+ const output=document.createElement('canvas');output.width=output.height=128;
+ const out=output.getContext('2d');if(!out)throw new Error('Canvasを利用できません。');
+ if(!transparent){out.fillStyle=background;out.fillRect(0,0,128,128);}
+ const bounds=stretchVertical?verticalInkBounds(ctx.getImageData(0,0,128,128).data,128,128):null;
+ if(bounds)out.drawImage(canvas,0,bounds.top,128,bounds.height,0,8,128,112);
+ else out.drawImage(canvas,0,0);
+ const blob=await new Promise(resolve=>output.toBlob(resolve,'image/png'));
  if(!blob) throw new Error('PNGを生成できませんでした。');
  if(blob.size>=128000) throw new Error('画像が128,000バイト以上です。');
- return {canvas,blob};
+ return {canvas:output,blob};
 }
 
 function mountEditor(app,{onGenerate=null,onDraft=()=>{},initial={}}={}) {
@@ -140,6 +151,9 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <div class="helper"><span id="text-help">4行まで・1行12文字まで</span><output id="counter"></output></div>
 <label class="label font-label" for="font">フォント</label>
 <select id="font"></select>
+<label class="label font-label" for="align">文字揃え</label>
+<select id="align"><option value="center">中央</option><option value="left">左</option><option value="right">右</option></select>
+<label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばして埋める</label>
 <fieldset><legend class="label">色</legend>
 <div class="colors"><label>文字 <input id="foreground" type="color" value="#176b50"></label><label>背景 <input id="background" type="color" value="#ffedb5"></label></div>
 <div class="swatches" aria-label="文字色プリセット"></div>
@@ -163,11 +177,11 @@ el('font').value='gothic-bold';
 for(const [color,label] of [['#176b50','緑'],['#d44735','赤'],['#252b38','墨'],['#ffffff','白'],['#d98a00','黄']]){
  const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;update();});app.querySelector('.swatches').append(button);
 }
-for(const id of ['text','foreground','background','name','font'])if(initial[id]!==undefined)el(id).value=initial[id];
-if(initial.transparent!==undefined)el('transparent').checked=initial.transparent;
+for(const id of ['text','foreground','background','name','font','align'])if(initial[id]!==undefined)el(id).value=initial[id];
+for(const id of ['transparent','stretchVertical'])if(initial[id]!==undefined)el(id).checked=initial[id];
 if(onGenerate)el('generate').textContent='登録欄に反映';
 let revision=0, current=null, url=null;
-function values(){return {font:el('font').value,text:el('text').value,foreground:el('foreground').value,background:el('background').value,transparent:el('transparent').checked};}
+function values(){return {stretchVertical:el('stretchVertical').checked,align:el('align').value,font:el('font').value,text:el('text').value,foreground:el('foreground').value,background:el('background').value,transparent:el('transparent').checked};}
 async function update(){
  const ticket=++revision;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
  onDraft({...values(),name:el('name').value});
@@ -258,5 +272,5 @@ function startIntegration(scope=document,styles='') {
  const stop=()=>{observer.disconnect();clear();};return stop;
 }
 
-if(/^\/customize\/emoji\/?$/.test(location.pathname)){const stop=startIntegration(document,":root{font-family:\"Hiragino Kaku Gothic ProN\",\"Yu Gothic\",sans-serif;color:#26352f;background:#f7f7f4;font-size:13px}*{box-sizing:border-box}body{margin:0}main{max-width:560px;padding:20px;margin:0 auto}h1{font-size:16px;margin:0 0 16px;font-weight:600}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:24px;align-items:start}.label{display:block;font-weight:600;font-size:12px;margin-bottom:6px}textarea,input[type=text],select{font:inherit;width:100%;border:1px solid #b9c1bb;border-radius:4px;padding:7px 9px;background:#fff;color:inherit}textarea{resize:vertical;min-height:58px;font-size:16px;line-height:1.4}textarea:focus,input:focus,select:focus,button:focus-visible{outline:2px solid #176b50;outline-offset:2px}.helper{font-size:10px;color:#68746c;line-height:1.6}.helper:has(span){display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px}.helper output{white-space:nowrap}fieldset{border:0;padding:0;margin:16px 0}.colors{display:flex;gap:16px}.colors label{display:flex;align-items:center;gap:6px;font-size:12px}input[type=color]{width:30px;height:28px;padding:2px;border:1px solid #b9c1bb;background:none;cursor:pointer}.swatches{display:flex;gap:8px;margin:10px 0}.swatches button{width:20px;height:20px;border:1px solid #bbc2ba;border-radius:50%;cursor:pointer}.check{font-size:12px;display:flex;align-items:center;gap:6px}input[type=checkbox]{accent-color:#176b50}#error{font-size:11px;color:#aa3128;margin:8px 0}#error:empty{display:none}.stage{width:96px;height:96px;display:grid;place-items:center;border:1px solid #cdd4c4;border-radius:3px}.checker{background-color:#fff;background-image:conic-gradient(#e8eae4 25%,transparent 0 50%,#e8eae4 0 75%,transparent 0);background-size:12px 12px}#large{width:80px;height:80px;object-fit:contain}img:not([src]){visibility:hidden}.samples{display:flex;gap:8px;margin-top:8px}.samples>div>span{font-size:10px;color:#68746c}.sample{display:grid;place-items:center;margin-top:3px;width:36px;height:32px;border-radius:3px}.light{background:white;border:1px solid #e0e3dd}.dark{background:#24282d}.small{width:22px;height:22px}#size{margin:8px 0}#generate{width:100%;border:0;border-radius:4px;background:#176b50;color:white;padding:9px;font:inherit;cursor:pointer}#generate:disabled{opacity:.4;cursor:default}#result{display:block;font-size:11px;line-height:1.6;margin-top:8px;overflow-wrap:anywhere}@media(max-width:400px){main{padding:12px}.workspace{grid-template-columns:minmax(0,1fr) 110px;gap:12px}}\n\n.font-label{margin-top:12px}select{font-size:12px;padding:7px 9px}\n\n:host{display:block;color:#26352f;font:13px \"Hiragino Kaku Gothic ProN\",sans-serif;background:#f7f7f4;border:1px solid #d4d9d4;border-radius:4px;margin:12px 0}main{margin:0;padding:16px;max-width:none}" );addEventListener('pagehide',stop,{once:true});}
+if(/^\/customize\/emoji\/?$/.test(location.pathname)){const stop=startIntegration(document,":root{font-family:\"Hiragino Kaku Gothic ProN\",\"Yu Gothic\",sans-serif;color:#26352f;background:#f7f7f4;font-size:13px}*{box-sizing:border-box}body{margin:0}main{max-width:560px;padding:20px;margin:0 auto}h1{font-size:16px;margin:0 0 16px;font-weight:600}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:24px;align-items:start}.label{display:block;font-weight:600;font-size:12px;margin-bottom:6px}textarea,input[type=text],select{font:inherit;width:100%;border:1px solid #b9c1bb;border-radius:4px;padding:7px 9px;background:#fff;color:inherit}textarea{resize:vertical;min-height:58px;font-size:16px;line-height:1.4}textarea:focus,input:focus,select:focus,button:focus-visible{outline:2px solid #176b50;outline-offset:2px}.helper{font-size:10px;color:#68746c;line-height:1.6}.helper:has(span){display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px}.helper output{white-space:nowrap}fieldset{border:0;padding:0;margin:16px 0}.colors{display:flex;gap:16px}.colors label{display:flex;align-items:center;gap:6px;font-size:12px}input[type=color]{width:30px;height:28px;padding:2px;border:1px solid #b9c1bb;background:none;cursor:pointer}.swatches{display:flex;gap:8px;margin:10px 0}.swatches button{width:20px;height:20px;border:1px solid #bbc2ba;border-radius:50%;cursor:pointer}.check{font-size:12px;display:flex;align-items:center;gap:6px}input[type=checkbox]{accent-color:#176b50}#error{font-size:11px;color:#aa3128;margin:8px 0}#error:empty{display:none}.stage{width:96px;height:96px;display:grid;place-items:center;border:1px solid #cdd4c4;border-radius:3px}.checker{background-color:#fff;background-image:conic-gradient(#e8eae4 25%,transparent 0 50%,#e8eae4 0 75%,transparent 0);background-size:12px 12px}#large{width:80px;height:80px;object-fit:contain}img:not([src]){visibility:hidden}.samples{display:flex;gap:8px;margin-top:8px}.samples>div>span{font-size:10px;color:#68746c}.sample{display:grid;place-items:center;margin-top:3px;width:36px;height:32px;border-radius:3px}.light{background:white;border:1px solid #e0e3dd}.dark{background:#24282d}.small{width:22px;height:22px}#size{margin:8px 0}#generate{width:100%;border:0;border-radius:4px;background:#176b50;color:white;padding:9px;font:inherit;cursor:pointer}#generate:disabled{opacity:.4;cursor:default}#result{display:block;font-size:11px;line-height:1.6;margin-top:8px;overflow-wrap:anywhere}@media(max-width:400px){main{padding:12px}.workspace{grid-template-columns:minmax(0,1fr) 110px;gap:12px}}\n\n.font-label{margin-top:12px}select{font-size:12px;padding:7px 9px}\n\n.stretch-option{margin-top:10px}\n\n:host{display:block;color:#26352f;font:13px \"Hiragino Kaku Gothic ProN\",sans-serif;background:#f7f7f4;border:1px solid #d4d9d4;border-radius:4px;margin:12px 0}main{margin:0;padding:16px;max-width:none}" );addEventListener('pagehide',stop,{once:true});}
 })();

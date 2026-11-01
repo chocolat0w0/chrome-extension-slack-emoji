@@ -16,3 +16,23 @@ test('fits actual glyph bounds including ascenders and descenders within padded 
  assert.ok(fit.size>0);
  for(const line of fit.lines){assert.ok(line.x-line.left>=8);assert.ok(line.x+line.right<=120);assert.ok(line.y-line.ascent>=8);assert.ok(line.y+line.descent<=120);}
 });
+test('aligns ink bounds at the left edge, center, or right edge with padding',()=>{
+ const measure=(text,size)=>({width:text.length*size,actualBoundingBoxLeft:2,actualBoundingBoxRight:text.length*size-2,actualBoundingBoxAscent:size*.8,actualBoundingBoxDescent:size*.2});
+ for(const align of ['left','center','right']){
+  const fit=fitText(['長い行','短'],measure,align);
+  for(const line of fit.lines){
+   if(align==='left')assert.equal(line.x-line.left,8);
+   if(align==='right')assert.equal(line.x+line.right,120);
+   if(align==='center')assert.equal((line.x-line.left+line.x+line.right)/2,64);
+  }
+ }
+ assert.deepEqual(fitText(['a'],measure),fitText(['a'],measure,'center'));
+ assert.throws(()=>fitText(['a'],measure,'invalid'),/文字揃え/);
+});
+test('finds actual vertical ink bounds, including faint edge pixels',async()=>{
+ const {verticalInkBounds}=await import('../src/emoji/layout.js');
+ const pixels=new Uint8ClampedArray(4*4*6);
+ assert.equal(verticalInkBounds(pixels,4,6),null);
+ pixels[(1*4+2)*4+3]=1;pixels[(4*4+1)*4+3]=255;
+ assert.deepEqual(verticalInkBounds(pixels,4,6),{top:1,height:4});
+});
