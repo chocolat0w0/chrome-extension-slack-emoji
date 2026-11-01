@@ -7,7 +7,7 @@ Slackのカスタム絵文字登録画面で、文字絵文字を作成して登
 配布ZIPを使う場合、ZIPを保存して展開し、展開したフォルダを継続して使う場所に置いてください。ソースから導入する場合は、下記のビルドで生成した `dist/` を使います。
 
 1. Chromeで `chrome://extensions` を開き、デベロッパーモードをオンにします。
-2. 「パッケージ化されていない拡張機能を読み込む」で、`manifest.json`、`content.js`、`font-worker.js` が入ったフォルダを選びます。ZIPそのものは選択しません。
+2. 「パッケージ化されていない拡張機能を読み込む」で、`manifest.json`、`content.js`、`font-worker.js`、`icon.png` が入ったフォルダを選びます。ZIPそのものは選択しません。
 3. 一覧に「Slack文字絵文字」が表示され、有効になっていることを確認します。
 4. Slackのカスタム絵文字登録ページ `https://<workspace>.slack.com/customize/emoji` を再読み込みします。
 
@@ -25,7 +25,7 @@ Slackのカスタム絵文字登録画面で、文字絵文字を作成して登
 
 ## 更新・無効化
 
-ソースから利用する場合は `npm run build` で再ビルドします。ZIPから更新する場合は新しいZIPを展開し、読み込み元フォルダの3ファイルを置き換えます。その後、Chromeの拡張機能画面で「Slack文字絵文字」の再読み込みを押し、Slackページも再読み込みしてください。
+ソースから利用する場合は `npm run build` で再ビルドします。ZIPから更新する場合は新しいZIPを展開し、読み込み元フォルダの4ファイルを置き換えます。その後、Chromeの拡張機能画面で「Slack文字絵文字」の再読み込みを押し、Slackページも再読み込みしてください。
 
 利用を止める場合は拡張機能画面でオフにします。削除しても、すでにSlackへ登録した絵文字は残ります。
 
@@ -69,7 +69,7 @@ npm run build
 npm run package
 ```
 
-`dist/` がChrome読み込み用フォルダです。`npm run package` はビルド後、`releases/slack-emoji-0.8.3.zip` とSHA-256ファイルを生成し、ZIPの展開内容がdistと同一であることを検証します。ZIPにはmanifest・画面用スクリプト・フォント取得用スクリプトの3ファイルのみ含まれます。`dist/` はGitに含め、配布ZIPは生成物としてGitの対象外にしています。
+`dist/` がChrome読み込み用フォルダです。`npm run package` はビルド後、`releases/slack-emoji-0.8.3.zip` とSHA-256ファイルを生成し、ZIPの展開内容がdistと同一であることを検証します。ZIPにはmanifest・画面用スクリプト・フォント取得用スクリプト・アイコンの4ファイルが含まれます。`dist/` はGitに含め、配布ZIPは生成物としてGitの対象外にしています。
 
 Chrome Web Storeへの公開はしていません。別プロファイルでの導入確認は個人利用のため省略しています。
 

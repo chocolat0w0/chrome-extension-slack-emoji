@@ -14,3 +14,4 @@ await mkdir('dist',{recursive:true});
 await writeFile('dist/content.js',`(()=>{\n${code}\nif(/^\\/customize\\/emoji\\/?$/.test(location.pathname)){const stop=startIntegration(document,${JSON.stringify(styles+'\n:host{display:block;color:#26352f;font:13px "Hiragino Kaku Gothic ProN",sans-serif;background:#f7f7f4;border:1px solid #d4d9d4;border-radius:4px;margin:12px 0}main{margin:0;padding:16px;max-width:none}')} );addEventListener('pagehide',stop,{once:true});}\n})();\n`);
 await writeFile('dist/font-worker.js',`(()=>{\n${await bundle([...shared,'src/font-worker.js'])}\n})();\n`);
 await writeFile('dist/manifest.json',await readFile('manifest.json'));
+await writeFile('dist/icon.png',await readFile('docs/chrome-web-store/icon.png'));

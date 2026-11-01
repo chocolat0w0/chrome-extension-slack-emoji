@@ -6,11 +6,13 @@ from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 
 root = Path(__file__).resolve().parent.parent
 dist = root / 'dist'
-allowed = {'manifest.json', 'content.js', 'font-worker.js'}
+allowed = {'manifest.json', 'content.js', 'font-worker.js', 'icon.png'}
 actual = {p.name for p in dist.iterdir()}
 if actual != allowed:
     raise SystemExit(f'Unexpected dist contents: {sorted(actual)}')
 manifest = json.loads((dist / 'manifest.json').read_text())
+if manifest.get('icons', {}).get('128') != 'icon.png':
+    raise SystemExit('Missing extension icon')
 if manifest != json.loads((root / 'manifest.json').read_text()):
     raise SystemExit('Manifest differs from source; rebuild first')
 if manifest.get('permissions') or manifest.get('host_permissions') != ['https://fonts.googleapis.com/*', 'https://fonts.gstatic.com/*'] or manifest.get('background') != {'service_worker': 'font-worker.js'}:
