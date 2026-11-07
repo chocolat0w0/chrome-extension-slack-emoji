@@ -4,6 +4,10 @@ Slackのカスタム絵文字登録画面で、文字絵文字を作成して登
 
 ## 導入
 
+[Chrome ウェブストアからインストール](https://chromewebstore.google.com/detail/slack%E6%96%87%E5%AD%97%E7%B5%B5%E6%96%87%E5%AD%97/aicphjgcncbgfkfefdpegbbkancibomc?hl=ja)できます。
+
+ソースや配布ZIPから手動で導入する場合は、以下の手順に従ってください。
+
 配布ZIPを使う場合、ZIPを保存して展開し、展開したフォルダを継続して使う場所に置いてください。ソースから導入する場合は、下記のビルドで生成した `dist/` を使います。
 
 1. Chromeで `chrome://extensions` を開き、デベロッパーモードをオンにします。
@@ -69,9 +73,7 @@ npm run build
 npm run package
 ```
 
-`dist/` がChrome読み込み用フォルダです。`npm run package` はビルド後、`releases/slack-emoji-0.8.3.zip` とSHA-256ファイルを生成し、ZIPの展開内容がdistと同一であることを検証します。ZIPにはmanifest・画面用スクリプト・フォント取得用スクリプト・アイコンの4ファイルが含まれます。`dist/` はGitに含め、配布ZIPは生成物としてGitの対象外にしています。
-
-Chrome Web Storeへの公開はしていません。別プロファイルでの導入確認は個人利用のため省略しています。
+`dist/` がChrome読み込み用フォルダです。`npm run package` はビルド後、`releases/slack-emoji-<バージョン>.zip` とSHA-256ファイルを生成し、ZIPの展開内容がdistと同一であることを検証します。ZIPにはmanifest・画面用スクリプト・フォント取得用スクリプト・アイコンの4ファイルが含まれます。`dist/` はGitに含め、配布ZIPは生成物としてGitの対象外にしています。
 
 ## 検証と確認画面
 
