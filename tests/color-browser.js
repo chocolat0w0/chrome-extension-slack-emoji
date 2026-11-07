@@ -25,7 +25,7 @@ export async function verifyColors(){
   el('transparent').checked=true;el('transparent').dispatchEvent(new Event('input',{bubbles:true}));await wait(()=>!el('generate').disabled);check(el('backgroundHex').disabled&&el('backgroundHex').value==='123456','transparent preserves background');
  }finally{dispose();app.remove();}
  const legacy=document.createElement('main');document.body.append(legacy);const disposeLegacy=mountEditor(legacy,{initial:{text:'確認',font:'pop'}});
- try{check(legacy.querySelector('#font').value==='gothic-bold','removed font falls back to default');await wait(()=>!legacy.querySelector('#generate').disabled);}finally{disposeLegacy();legacy.remove();}
+ try{check(legacy.querySelector('#font').value==='gothic','removed font falls back to default');await wait(()=>!legacy.querySelector('#generate').disabled);}finally{disposeLegacy();legacy.remove();}
  const scope=document.createElement('section');document.body.append(scope);
  const markup='<div role="dialog"><div data-qa="customize_emoji_add_dialog_body"><form><input type="file" data-qa="customize_emoji_add_dialog_file_input"><input type="text" data-qa="customize_emoji_add_dialog_input"></form><button data-qa="customize_emoji_add_dialog_go">保存</button></div></div>';
  scope.innerHTML=markup;const stop=startIntegration(scope);

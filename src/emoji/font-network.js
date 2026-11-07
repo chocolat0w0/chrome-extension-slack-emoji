@@ -1,8 +1,8 @@
-import {FONT_PRESETS} from './fonts.js';
+import {fontPreset,fontWeight,actualFontWeight} from './fonts.js';
 const styleCache=new Map();
-export function fontCssUrl(id){
- const p=FONT_PRESETS.find(p=>p.id===id);if(!p)throw Error('Unknown font');
- return `https://fonts.googleapis.com/css2?family=${encodeURIComponent(p.googleFamily+':wght@'+p.weight)}&display=block`;
+export function fontCssUrl(id,weight=900){
+ const p=fontPreset(id);weight=fontWeight(weight);
+ return `https://fonts.googleapis.com/css2?family=${encodeURIComponent(p.googleFamily+':wght@'+actualFontWeight(id,weight))}&display=block`;
 }
 export function rangeContains(range,point){
  return range.split(',').some(part=>{
@@ -26,12 +26,13 @@ async function fontFetch(url){
  const response=await fetch(url,{credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',signal:AbortSignal.timeout(15000)});
  if(!response.ok)throw Error('Font request failed: '+response.status);return response;
 }
-export async function fetchFontStyles(id){
- if(!styleCache.has(id)){
-  const promise=fontFetch(fontCssUrl(id)).then(r=>r.text()).then(parseFontCss).catch(e=>{styleCache.delete(id);throw e;});styleCache.set(id,promise);
- }return styleCache.get(id);
+export async function fetchFontStyles(id,weight=900){
+ const key=id+':'+fontWeight(weight);
+ if(!styleCache.has(key)){
+  const promise=fontFetch(fontCssUrl(id,weight)).then(r=>r.text()).then(parseFontCss).catch(e=>{styleCache.delete(key);throw e;});styleCache.set(key,promise);
+ }return styleCache.get(key);
 }
-export async function fetchFontBytes(id,index){
- const styles=await fetchFontStyles(id);if(!Number.isInteger(index)||!styles[index])throw Error('Unknown font subset');
+export async function fetchFontBytes(id,index,weight=900){
+ const styles=await fetchFontStyles(id,weight);if(!Number.isInteger(index)||!styles[index])throw Error('Unknown font subset');
  const buffer=await (await fontFetch(styles[index].url)).arrayBuffer();if(buffer.byteLength>8*1024*1024)throw Error('Font too large');return buffer;
 }

@@ -1,27 +1,36 @@
 (()=>{
 // Google Fonts are fetched on use; aliases prevent accidental local-font substitution.
 const FONT_PRESETS = [
- {id:'gothic',label:'ゴシック体',weight:700,stroke:0.025,googleFamily:'Noto Sans JP',family:'"SlackEmojiWebGothic"'},
- {id:'gothic-bold',label:'太いゴシック体',weight:900,stroke:0.04,googleFamily:'Noto Sans JP',family:'"SlackEmojiWebGothicBold"'},
- {id:'mincho',label:'明朝体',weight:900,stroke:0.025,googleFamily:'Noto Serif JP',family:'"SlackEmojiWebMincho"'},
- {id:'rounded',label:'丸文字',weight:900,stroke:0.025,googleFamily:'M PLUS Rounded 1c',family:'"SlackEmojiWebMaru"'}
+ {id:'gothic',label:'ゴシック体',googleFamily:'Noto Sans JP',family:'"SlackEmojiWebGothic"'},
+ {id:'mincho',label:'明朝体',googleFamily:'Noto Serif JP',family:'"SlackEmojiWebMincho"'},
+ {id:'rounded',label:'丸文字',googleFamily:'M PLUS Rounded 1c',family:'"SlackEmojiWebMaru"'}
 ];
-function canvasFont(id='gothic-bold',size) {
- const preset=FONT_PRESETS.find(p=>p.id===id);
+function fontPreset(id='gothic') {
+ const preset=FONT_PRESETS.find(p=>p.id===(id==='gothic-bold'?'gothic':id));
  if(!preset)throw new Error('フォントを選び直してください。');
- return `${preset.weight} ${size}px ${preset.family}`;
+ return preset;
 }
-
-function fontStrokeWidth(id='gothic-bold',size) {
- const preset=FONT_PRESETS.find(p=>p.id===id);
- if(!preset)throw new Error('フォントを選び直してください。');
- return Math.max(0.4,size*preset.stroke);
+function fontWeight(weight=900) {
+ const value=Number(weight);
+ if(![300,500,900].includes(value))throw new Error('太さを選び直してください。');
+ return value;
+}
+function actualFontWeight(id,weight=900) {
+ const preset=fontPreset(id),value=fontWeight(weight);
+ return value===300?(preset.id==='mincho'?600:500):value===500?(preset.id==='mincho'?900:preset.id==='rounded'?700:800):900;
+}
+function canvasFont(id='gothic',size,weight=900) {
+ return `${actualFontWeight(id,weight)} ${size}px ${fontPreset(id).family}`;
+}
+function fontStrokeWidth(id='gothic',size,weight=900) {
+ const preset=fontPreset(id),value=fontWeight(weight);
+ return value===300||(value===500&&preset.id==='gothic')||(preset.id==='rounded'&&value===900)?0:Math.max(0.1,size*(value===500?(preset.id==='rounded'?0.02:0.025):(preset.id==='mincho'?0.06:0.04)));
 }
 
 const styleCache=new Map();
-function fontCssUrl(id){
- const p=FONT_PRESETS.find(p=>p.id===id);if(!p)throw Error('Unknown font');
- return `https://fonts.googleapis.com/css2?family=${encodeURIComponent(p.googleFamily+':wght@'+p.weight)}&display=block`;
+function fontCssUrl(id,weight=900){
+ const p=fontPreset(id);weight=fontWeight(weight);
+ return `https://fonts.googleapis.com/css2?family=${encodeURIComponent(p.googleFamily+':wght@'+actualFontWeight(id,weight))}&display=block`;
 }
 function rangeContains(range,point){
  return range.split(',').some(part=>{
@@ -45,13 +54,14 @@ async function fontFetch(url){
  const response=await fetch(url,{credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',signal:AbortSignal.timeout(15000)});
  if(!response.ok)throw Error('Font request failed: '+response.status);return response;
 }
-async function fetchFontStyles(id){
- if(!styleCache.has(id)){
-  const promise=fontFetch(fontCssUrl(id)).then(r=>r.text()).then(parseFontCss).catch(e=>{styleCache.delete(id);throw e;});styleCache.set(id,promise);
- }return styleCache.get(id);
+async function fetchFontStyles(id,weight=900){
+ const key=id+':'+fontWeight(weight);
+ if(!styleCache.has(key)){
+  const promise=fontFetch(fontCssUrl(id,weight)).then(r=>r.text()).then(parseFontCss).catch(e=>{styleCache.delete(key);throw e;});styleCache.set(key,promise);
+ }return styleCache.get(key);
 }
-async function fetchFontBytes(id,index){
- const styles=await fetchFontStyles(id);if(!Number.isInteger(index)||!styles[index])throw Error('Unknown font subset');
+async function fetchFontBytes(id,index,weight=900){
+ const styles=await fetchFontStyles(id,weight);if(!Number.isInteger(index)||!styles[index])throw Error('Unknown font subset');
  const buffer=await (await fontFetch(styles[index].url)).arrayBuffer();if(buffer.byteLength>8*1024*1024)throw Error('Font too large');return buffer;
 }
 
@@ -60,8 +70,8 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
  let url;try{url=new URL(sender.url);}catch{return;}
  if(sender.id!==chrome.runtime.id||url.protocol!=='https:'||!url.hostname.endsWith('.slack.com')||!/^\/customize\/emoji\/?$/.test(url.pathname))return;
  (async()=>{
-  if(message.type==='font-styles')return {ok:true,styles:await fetchFontStyles(message.id)};
-  const buffer=await fetchFontBytes(message.id,message.index),bytes=new Uint8Array(buffer);
+  if(message.type==='font-styles')return {ok:true,styles:await fetchFontStyles(message.id,message.weight)};
+  const buffer=await fetchFontBytes(message.id,message.index,message.weight),bytes=new Uint8Array(buffer);
   let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
   return {ok:true,base64:btoa(binary)};
  })().then(reply,()=>reply({ok:false,error:'Font request failed'}));return true;

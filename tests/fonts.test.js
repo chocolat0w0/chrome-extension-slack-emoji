@@ -1,20 +1,28 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {FONT_PRESETS,canvasFont,fontStrokeWidth} from '../src/emoji/fonts.js';
-test('offers requested styles and defaults to bold Gothic',()=>{
- assert.deepEqual(FONT_PRESETS.map(p=>p.label),['ゴシック体','太いゴシック体','明朝体','丸文字']);
- assert.equal(FONT_PRESETS.find(p=>p.id==='rounded').googleFamily,'M PLUS Rounded 1c');
- assert.equal(FONT_PRESETS.find(p=>p.id==='rounded').weight,900);
- assert.equal(canvasFont(undefined,32),canvasFont('gothic-bold',32));
- assert.match(canvasFont('gothic',32),/^700 32px/);
- assert.match(canvasFont('gothic-bold',32),/^900 32px/);
- assert.match(canvasFont('mincho',32),/Mincho/);
- assert.match(canvasFont('rounded',32),/Maru/);
+test('offers three independent weights for every font family',()=>{
+ assert.deepEqual(FONT_PRESETS.map(p=>p.label),['ゴシック体','明朝体','丸文字']);
+ for(const preset of FONT_PRESETS)for(const weight of [300,500,900]){
+  const actual=weight===300?(preset.id==='mincho'?600:500):weight===500?(preset.id==='mincho'?900:preset.id==='rounded'?700:800):900;
+  assert.match(canvasFont(preset.id,32,weight),new RegExp(`^${actual} 32px`));
+  assert.ok(fontStrokeWidth(preset.id,48,weight)>=0);
+ }
+ assert.equal(canvasFont(undefined,32),canvasFont('gothic',32,900));
  assert.throws(()=>canvasFont('invalid',32),/フォント/);
+ assert.throws(()=>canvasFont('gothic',32,123),/太さ/);
 });
 
-test('applies 4% stroke to bold Gothic and 2.5% to other fonts',()=>{
- for(const preset of FONT_PRESETS){assert.ok(fontStrokeWidth(preset.id,48)>0);}
- for(const preset of FONT_PRESETS)assert.ok(Math.abs(fontStrokeWidth(preset.id,48)-(preset.id==='gothic-bold'?1.92:1.2))<1e-9);
- assert.ok(fontStrokeWidth('rounded',12)<fontStrokeWidth('rounded',48));
+test('medium uses the specified font weights and outlines',()=>{
+ for(const [id,weight] of [['gothic',800],['mincho',900],['rounded',700]]){
+  assert.match(canvasFont(id,48,500),new RegExp(`^${weight} 48px`));
+  assert.equal(fontStrokeWidth(id,48,500),(id==='mincho'?48*0.025:id==='rounded'?48*0.02:0));
+ }
+});
+
+test('adjusts requested outlines while leaving other combinations unchanged',()=>{
+ for(const p of FONT_PRESETS)assert.equal(fontStrokeWidth(p.id,100,300),0);
+ assert.equal(fontStrokeWidth('mincho',100,900),6);
+ assert.equal(fontStrokeWidth('gothic',100,900),4);
+ assert.equal(fontStrokeWidth('rounded',100,900),0);
 });

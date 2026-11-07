@@ -11,6 +11,9 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <div class="helper"><span id="text-help">4行まで・1行12文字まで</span><output id="counter"></output></div>
 <label class="label font-label" for="font">フォント</label>
 <select id="font"></select>
+<label class="label font-label" for="fontWeight">太さ</label>
+<input id="fontWeight" type="range" min="0" max="2" step="1" value="2" aria-valuetext="太">
+<div class="weight-labels" aria-hidden="true"><span>細</span><span>中</span><span>太</span></div>
 <label class="label font-label" for="align">文字揃え</label>
 <select id="align"><option value="center">中央</option><option value="left">左</option><option value="right">右</option></select>
 <label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばして埋める</label>
@@ -38,19 +41,24 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 </aside></section>`;
 const el=id=>app.querySelector('#'+id);
 for(const preset of FONT_PRESETS){const option=document.createElement('option');option.value=preset.id;option.textContent=preset.label;el('font').append(option);}
-el('font').value='gothic-bold';
+el('font').value='gothic';
 for(const [color,label] of [['#3ab0c7','水色'],['#176b50','緑'],['#ff0000','赤'],['#1111ff','青'],['#ec71a1','ピンク'],['#00bb00','明るい緑'],['#d98a00','黄'],['#252b38','墨'],['#ffffff','白']]){
  const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;el('foregroundHex').value=color;update();});app.querySelector('.swatches').append(button);
 }
 for(const id of ['text','foreground','background','name','font','align','animation','frame'])if(initial[id]!==undefined)el(id).value=initial[id];
 if(!el('frame').value)el('frame').value='none';
-if(!el('font').value)el('font').value='gothic-bold';
+if(!el('font').value)el('font').value='gothic';
+const weights=[300,500,900],weightLabels=['細','中','太'];
+const initialWeight=initial.fontWeight??(initial.font==='gothic'?500:900);
+const weightIndex=weights.indexOf(Number(initialWeight));
+el('fontWeight').value=String(weightIndex<0?2:weightIndex);
 for(const id of ['transparent','stretchVertical'])if(initial[id]!==undefined)el(id).checked=initial[id];
 for(const id of ['foreground','background'])el(id+'Hex').value=initial[id]??el(id).value;
 if(onGenerate)el('generate').textContent='登録欄に反映';
 let revision=0, editRevision=0, current=null, url=null, preferredAlign=el('align').value;
-function values(){return {frame:el('frame').value,animation:el('animation').value,stretchVertical:el('stretchVertical').checked,align:el('frame').value==='none'?el('align').value:preferredAlign,font:el('font').value,text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:el('transparent').checked};}
+function values(){return {frame:el('frame').value,animation:el('animation').value,stretchVertical:el('stretchVertical').checked,align:el('frame').value==='none'?el('align').value:preferredAlign,font:el('font').value,fontWeight:weights[Number(el('fontWeight').value)],text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:el('transparent').checked};}
 async function update(){
+ el('fontWeight').setAttribute('aria-valuetext',weightLabels[Number(el('fontWeight').value)]);
  const ticket=++revision;editRevision++;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
  if(!el('align').disabled)preferredAlign=el('align').value;
  el('align').disabled=el('frame').value!=='none';
