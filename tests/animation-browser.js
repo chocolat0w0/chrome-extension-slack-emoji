@@ -61,7 +61,7 @@ export async function verifyAnimation(){
  const area=document.createElement('main');document.body.append(area);let dispose;
  try{
   let draft,file;dispose=mountEditor(area,{initial:{name:'bounce_test'},onDraft:value=>draft=value});const el=id=>area.querySelector('#'+id);
-  await until(()=>!el('generate').disabled);check(el('background').value==='#ffffff'&&!el('transparent').checked,'White default background');
+  await until(()=>!el('generate').disabled);check(el('background').value==='#ffffff'&&el('transparent').checked&&el('background').disabled,'Transparent default background');
   area.addEventListener('emoji-generated',e=>file=e.detail.file);
   el('animation').value='bounce';el('animation').dispatchEvent(new Event('input',{bubbles:true}));await until(()=>!el('generate').disabled);
   check(draft.animation==='bounce'&&el('generate').textContent==='GIFを生成','Animation draft/button');
@@ -70,7 +70,7 @@ export async function verifyAnimation(){
   dispose();dispose=mountEditor(area,{initial:draft,onGenerate:async value=>file=value});await until(()=>!el('generate').disabled);
   check(el('animation').value==='bounce','Animation restored');el('generate').click();await until(()=>!el('generate').disabled);check(file.type==='image/gif','GIF transfer callback');
   el('animation').value='none';el('animation').dispatchEvent(new Event('input',{bubbles:true}));await until(()=>!el('generate').disabled);el('generate').click();await until(()=>!el('generate').disabled);
-  check(file.name==='bounce_test.png'&&file.type==='image/png','Switch back to PNG');results.push('White defaults, GIF preview/file/transfer, draft restore, PNG switch');
+  check(file.name==='bounce_test.png'&&file.type==='image/png','Switch back to PNG');results.push('Transparent default, GIF preview/file/transfer, draft restore, PNG switch');
  }finally{dispose?.();area.remove();}
  return results;
 }
