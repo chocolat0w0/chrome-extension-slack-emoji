@@ -15,6 +15,8 @@ function normalizeHex(value){
  return /^[0-9a-f]{6}$/i.test(hex)?'#'+hex.toLowerCase():null;
 }
 
+function effectiveTransparency(animation,transparent){return animation==='none'&&Boolean(transparent);}
+
 function fitText(texts, measure, align='center',area={x:0,y:0,width:128,height:128}) {
  if(!['center','left','right'].includes(align))throw Error('文字揃えを選び直してください。');
  // Each line uses its actual ink bounds, not only advance width.
@@ -169,7 +171,9 @@ function encodeGif({width,height,palette,frames,transparent=false,delay=6}){
  bytes.push(0x3b);return new Blob([Uint8Array.from(bytes)],{type:'image/gif'});
 }
 
-function renderAnimation(layer,{foreground,background,transparent,animation}){
+const ANIMATION_DELAYS={slow:7,medium:5,fast:2};
+function renderAnimation(layer,{foreground,background,transparent,animation,speed='medium'}){
+ const delay=ANIMATION_DELAYS[speed];if(delay===undefined)throw Error('速度を選び直してください。');
  const rgb=hex=>[1,3,5].map(offset=>parseInt(hex.slice(offset,offset+2),16));
  const ink=rgb(foreground),paper=transparent?ink:rgb(background),palette=new Uint8Array(768);
  // A two-color gradient preserves the exact selected colors and opaque edges.
@@ -182,19 +186,19 @@ function renderAnimation(layer,{foreground,background,transparent,animation}){
   ctx.clearRect(0,0,128,128);
   if(animation==='bounce')ctx.drawImage(layer,12.8,25.6-20*4*t*(1-t),102.4,102.4);
   if(animation==='shake'){
-   const offsets=[0,4,-4,3,-3];ctx.drawImage(layer,12.8+offsets[i%offsets.length],12.8,102.4,102.4);
+   const offsets=[0,4,-4,3,-3];ctx.drawImage(layer,12.8+offsets[Math.floor(i/2)%offsets.length],12.8,102.4,102.4);
   }
   if(animation==='pop'){
    const size=128*(.55+.29*Math.sin(Math.PI*t)),margin=(128-size)/2;ctx.drawImage(layer,margin,margin,size,size);
   }
-  if((animation==='blink'&&i<10)||(animation==='blink-fast'&&i%10<5))ctx.drawImage(layer,0,0,128,128);
+  if(animation==='blink'&&i<10)ctx.drawImage(layer,0,0,128,128);
   const rgba=ctx.getImageData(0,0,128,128).data,pixels=new Uint8Array(128*128);
   // 32 edge shades keep antialiasing while avoiding hundreds of near-identical
   // colors that inflate animated text. Endpoints retain exact foreground/background.
   for(let p=0;p<pixels.length;p++){const alpha=rgba[p*4+3];pixels[p]=transparent?(alpha>=128?255:0):Math.round(Math.round(alpha*31/255)*255/31);}
   frames.push(pixels);
  }
- return encodeGif({width:128,height:128,palette,frames,transparent,delay:6});
+ return encodeGif({width:128,height:128,palette,frames,transparent,delay});
 }
 
 // Rectangles are inset from the inner circle by at least 3px at each corner.
@@ -226,9 +230,10 @@ function drawFrame(ctx,frame,color){
  ctx.restore();
 }
 
-async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic',fontWeight=900,align='center',stretchVertical=true,animation='none',frame='none'}) {
+async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic',fontWeight=900,align='center',stretchVertical=true,animation='none',animationSpeed='medium',frame='none'}) {
  const errors=validate(text); if(errors.length) throw new Error(errors.join(' '));
- if(!['none','bounce','shake','pop','blink','blink-fast'].includes(animation))throw Error('アニメーションを選び直してください。');
+ if(!['none','bounce','shake','pop','blink'].includes(animation))throw Error('アニメーションを選び直してください。');
+ transparent=effectiveTransparency(animation,transparent);
  const area=frameLayout(frame);
  await ensureWebFont(fontId,text,fontWeight);
  const canvas=document.createElement('canvas'); canvas.width=canvas.height=128;
@@ -268,7 +273,7 @@ async function renderEmoji({text,foreground,background,transparent,font:fontId='
  const out=output.getContext('2d');if(!out)throw new Error('Canvasを利用できません。');
  if(!transparent){out.fillStyle=background;out.fillRect(0,0,128,128);}
  out.drawImage(layer,0,0);
- const blob=animation!=='none'?renderAnimation(layer,{foreground,background,transparent,animation}):await new Promise(resolve=>output.toBlob(resolve,'image/png'));
+ const blob=animation!=='none'?renderAnimation(layer,{foreground,background,transparent,animation,speed:animationSpeed}):await new Promise(resolve=>output.toBlob(resolve,'image/png'));
  if(!blob) throw new Error('画像を生成できませんでした。');
  if(blob.size>=128000) throw new Error(animation!=='none'?'GIFが128,000バイト以上です。文字数を減らすか、背景を透明にしてください。':'画像が128,000バイト以上です。');
  return {canvas:output,blob};
@@ -293,14 +298,17 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <label class="label font-label" for="frame">フレーム</label>
 <select id="frame"><option value="none">なし</option><option value="circle">丸囲み</option><option value="double-circle">二重丸</option><option value="rays">集中線</option></select>
 <label class="label font-label" for="animation">アニメーション</label>
-<select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（GIF）</option><option value="shake">ぶるぶる（GIF）</option><option value="pop">ポップ（GIF）</option><option value="blink">点滅（GIF）</option><option value="blink-fast">点滅・速い（GIF）</option></select>
+<select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（GIF）</option><option value="shake">ぶるぶる（GIF）</option><option value="pop">ポップ（GIF）</option><option value="blink">点滅（GIF）</option></select>
+<label class="label font-label" for="animationSpeed">アニメーション速度</label>
+<input id="animationSpeed" type="range" min="0" max="2" step="1" value="1" aria-valuetext="中">
+<div class="weight-labels" aria-hidden="true"><span>遅</span><span>中</span><span>速</span></div>
 <fieldset><legend class="label">色</legend>
 <div class="colors">
 <div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#3ab0c7"><input id="foregroundHex" type="text" value="#3ab0c7" aria-label="文字色のHEXコード" placeholder="#3ab0c7" spellcheck="false" autocomplete="off"></div></div>
 <div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffffff"><input id="backgroundHex" type="text" value="#ffffff" aria-label="背景色のHEXコード" placeholder="#ffffff" spellcheck="false" autocomplete="off"></div></div>
 </div>
 <div class="swatches" aria-label="文字色プリセット"></div>
-<label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label></fieldset>
+<label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label><p id="transparencyHelp" class="helper" hidden>GIFでは背景色を使用します。</p></fieldset>
 <label class="label" for="name">Slackでの名前</label>
 <input id="name" type="text" placeholder="例：arigatou" autocomplete="off">
 <p id="error" role="alert"></p>
@@ -319,19 +327,28 @@ for(const [color,label] of [['#3ab0c7','水色'],['#176b50','緑'],['#ff0000','�
  const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;el('foregroundHex').value=color;update();});app.querySelector('.swatches').append(button);
 }
 for(const id of ['text','foreground','background','name','font','align','animation','frame'])if(initial[id]!==undefined)el(id).value=initial[id];
+if(initial.animation==='blink-fast')el('animation').value='blink';
 if(!el('frame').value)el('frame').value='none';
 if(!el('font').value)el('font').value='gothic';
 const weights=[300,500,900],weightLabels=['細','中','太'];
+const speeds=['slow','medium','fast'],speedLabels=['遅','中','速'],durations=[1.4,1,0.4];
+const speedIndex=speeds.indexOf(initial.animationSpeed??(initial.animation==='blink-fast'?'fast':'medium'));el('animationSpeed').value=String(speedIndex<0?1:speedIndex);
 const initialWeight=initial.fontWeight??(initial.font==='gothic'?500:900);
 const weightIndex=weights.indexOf(Number(initialWeight));
 el('fontWeight').value=String(weightIndex<0?2:weightIndex);
 for(const id of ['transparent','stretchVertical'])if(initial[id]!==undefined)el(id).checked=initial[id];
 for(const id of ['foreground','background'])el(id+'Hex').value=initial[id]??el(id).value;
+let preferredTransparent=el('transparent').checked;
 if(onGenerate)el('generate').textContent='登録欄に反映';
 let revision=0, editRevision=0, current=null, url=null, preferredAlign=el('align').value;
-function values(){return {frame:el('frame').value,animation:el('animation').value,stretchVertical:el('stretchVertical').checked,align:el('frame').value==='none'?el('align').value:preferredAlign,font:el('font').value,fontWeight:weights[Number(el('fontWeight').value)],text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:el('transparent').checked};}
+function values(){return {frame:el('frame').value,animation:el('animation').value,animationSpeed:speeds[Number(el('animationSpeed').value)],stretchVertical:el('stretchVertical').checked,align:el('frame').value==='none'?el('align').value:preferredAlign,font:el('font').value,fontWeight:weights[Number(el('fontWeight').value)],text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:preferredTransparent};}
 async function update(){
  el('fontWeight').setAttribute('aria-valuetext',weightLabels[Number(el('fontWeight').value)]);
+ el('animationSpeed').setAttribute('aria-valuetext',speedLabels[Number(el('animationSpeed').value)]);
+ el('animationSpeed').disabled=el('animation').value==='none';
+ const isGif=el('animation').value!=='none';
+ el('transparent').checked=effectiveTransparency(el('animation').value,preferredTransparent);
+ el('transparent').disabled=isGif;el('transparencyHelp').hidden=!isGif;
  const ticket=++revision;editRevision++;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
  if(!el('align').disabled)preferredAlign=el('align').value;
  el('align').disabled=el('frame').value!=='none';
@@ -350,13 +367,14 @@ async function update(){
   const image=await renderEmoji(values());if(disposed||ticket!==revision)return;
   if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(image.blob);
   app.querySelectorAll('img').forEach(img=>img.src=url);current=image.blob;
-  el('size').textContent=`128 × 128 px · ${image.blob.type==='image/gif'?'GIF · 20コマ · 1.2秒':'PNG'} · ${image.blob.size.toLocaleString()} bytes`;
+  el('size').textContent=`128 × 128 px · ${image.blob.type==='image/gif'?`GIF · 20コマ · ${durations[Number(el('animationSpeed').value)]}秒`:'PNG'} · ${image.blob.size.toLocaleString()} bytes`;
   el('generate').disabled=busy;
  }catch(error){if(!disposed&&ticket===revision)el('error').textContent=error.message;}
  finally{if(!disposed&&ticket===revision)el('loading').textContent='';}
 }
 el('editor').addEventListener('submit',e=>e.preventDefault());
 el('editor').addEventListener('input',event=>{
+ if(event.target===el('transparent'))preferredTransparent=el('transparent').checked;
  if(event.target===el('name')){editRevision++;onDraft({...values(),name:el('name').value});if(!busy)el('result').textContent=reflected?'変更を登録欄に反映してください。':'';return;}
  for(const id of ['foreground','background']){
   if(event.target===el(id))el(id+'Hex').value=el(id).value;
@@ -440,5 +458,5 @@ function startIntegration(scope=document,styles='') {
  const stop=()=>{observer.disconnect();clear();};return stop;
 }
 
-if(/^\/customize\/emoji\/?$/.test(location.pathname)){const stop=startIntegration(document,":root{font-family:\"Hiragino Kaku Gothic ProN\",\"Yu Gothic\",sans-serif;color:#26352f;background:#f7f7f4;font-size:13px}*{box-sizing:border-box}body{margin:0}main{max-width:560px;padding:20px;margin:0 auto}h1{font-size:16px;margin:0 0 16px;font-weight:600}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:24px;align-items:start}.label{display:block;font-weight:600;font-size:12px;margin-bottom:6px}textarea,input[type=text],select{font:inherit;width:100%;border:1px solid #b9c1bb;border-radius:4px;padding:7px 9px;background:#fff;color:inherit}textarea{resize:vertical;min-height:58px;font-size:16px;line-height:1.4}textarea:focus,input:focus,select:focus,button:focus-visible{outline:2px solid #176b50;outline-offset:2px}.helper{font-size:10px;color:#68746c;line-height:1.6}.helper:has(span){display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px}.helper output{white-space:nowrap}fieldset{border:0;padding:0;margin:16px 0}.colors{display:flex;gap:16px}.colors label{display:flex;align-items:center;gap:6px;font-size:12px}input[type=color]{width:30px;height:28px;padding:2px;border:1px solid #b9c1bb;background:none;cursor:pointer}.swatches{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.swatches button{flex:0 0 20px;width:20px;height:20px;border:1px solid #bbc2ba;border-radius:50%;cursor:pointer}.check{font-size:12px;display:flex;align-items:center;gap:6px}input[type=checkbox]{accent-color:#176b50}#error{font-size:11px;color:#aa3128;margin:8px 0}#error:empty{display:none}img:not([src]){visibility:hidden}.samples{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.samples>div>span{font-size:10px;color:#68746c}.sample{margin-top:3px;aspect-ratio:1}.light{background:white;outline:1px solid #e0e3dd}.dark{background:#24282d}.sample img{display:block;width:100%;height:100%}#size{margin:8px 0}#generate{width:100%;border:0;border-radius:4px;background:#176b50;color:white;padding:9px;font:inherit;cursor:pointer}#generate:disabled{opacity:.4;cursor:default}#result{display:block;font-size:11px;line-height:1.6;margin-top:8px;overflow-wrap:anywhere}@media(max-width:400px){main{padding:12px}.workspace{grid-template-columns:minmax(0,1fr) 110px;gap:12px}}\n\n.font-label{margin-top:12px}select{font-size:12px;padding:7px 9px}\n\n.stretch-option{margin-top:10px}\n\n.colors{flex-wrap:wrap;gap:10px}.color-control{flex:1;min-width:112px}.color-control>label{display:block;margin-bottom:4px;font-size:12px}.color-fields{display:flex;align-items:center;gap:5px}.color-fields input[type=text]{width:90px;min-width:0;padding:5px;font:12px ui-monospace,monospace}.color-fields input[type=color]{flex-shrink:0}input[aria-invalid=true]{border-color:#aa3128}input:disabled{opacity:.5}\n\n#fontWeight{width:100%;margin:0;accent-color:#176b50}.weight-labels{display:flex;justify-content:space-between;font-size:11px;color:#68746c;margin-top:2px}\n\n:host{display:block;color:#26352f;font:13px \"Hiragino Kaku Gothic ProN\",sans-serif;background:#f7f7f4;border:1px solid #d4d9d4;border-radius:4px;margin:12px 0}main{margin:0;padding:16px;max-width:none}" );addEventListener('pagehide',stop,{once:true});}
+if(/^\/customize\/emoji\/?$/.test(location.pathname)){const stop=startIntegration(document,":root{font-family:\"Hiragino Kaku Gothic ProN\",\"Yu Gothic\",sans-serif;color:#26352f;background:#f7f7f4;font-size:13px}*{box-sizing:border-box}body{margin:0}main{max-width:560px;padding:20px;margin:0 auto}h1{font-size:16px;margin:0 0 16px;font-weight:600}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:24px;align-items:start}.label{display:block;font-weight:600;font-size:12px;margin-bottom:6px}textarea,input[type=text],select{font:inherit;width:100%;border:1px solid #b9c1bb;border-radius:4px;padding:7px 9px;background:#fff;color:inherit}textarea{resize:vertical;min-height:58px;font-size:16px;line-height:1.4}textarea:focus,input:focus,select:focus,button:focus-visible{outline:2px solid #176b50;outline-offset:2px}.helper{font-size:10px;color:#68746c;line-height:1.6}.helper:has(span){display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px}.helper output{white-space:nowrap}fieldset{border:0;padding:0;margin:16px 0}.colors{display:flex;gap:16px}.colors label{display:flex;align-items:center;gap:6px;font-size:12px}input[type=color]{width:30px;height:28px;padding:2px;border:1px solid #b9c1bb;background:none;cursor:pointer}.swatches{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.swatches button{flex:0 0 20px;width:20px;height:20px;border:1px solid #bbc2ba;border-radius:50%;cursor:pointer}.check{font-size:12px;display:flex;align-items:center;gap:6px}input[type=checkbox]{accent-color:#176b50}#error{font-size:11px;color:#aa3128;margin:8px 0}#error:empty{display:none}img:not([src]){visibility:hidden}.samples{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.samples>div>span{font-size:10px;color:#68746c}.sample{margin-top:3px;aspect-ratio:1}.light{background:white;outline:1px solid #e0e3dd}.dark{background:#24282d}.sample img{display:block;width:100%;height:100%}#size{margin:8px 0}#generate{width:100%;border:0;border-radius:4px;background:#176b50;color:white;padding:9px;font:inherit;cursor:pointer}#generate:disabled{opacity:.4;cursor:default}#result{display:block;font-size:11px;line-height:1.6;margin-top:8px;overflow-wrap:anywhere}@media(max-width:400px){main{padding:12px}.workspace{grid-template-columns:minmax(0,1fr) 110px;gap:12px}}\n\n.font-label{margin-top:12px}select{font-size:12px;padding:7px 9px}\n\n.stretch-option{margin-top:10px}\n\n.colors{flex-wrap:wrap;gap:10px}.color-control{flex:1;min-width:112px}.color-control>label{display:block;margin-bottom:4px;font-size:12px}.color-fields{display:flex;align-items:center;gap:5px}.color-fields input[type=text]{width:90px;min-width:0;padding:5px;font:12px ui-monospace,monospace}.color-fields input[type=color]{flex-shrink:0}input[aria-invalid=true]{border-color:#aa3128}input:disabled{opacity:.5}\n\n#fontWeight,#animationSpeed{width:100%;margin:0;accent-color:#176b50}.weight-labels{display:flex;justify-content:space-between;font-size:11px;color:#68746c;margin-top:2px}\n\n:host{display:block;color:#26352f;font:13px \"Hiragino Kaku Gothic ProN\",sans-serif;background:#f7f7f4;border:1px solid #d4d9d4;border-radius:4px;margin:12px 0}main{margin:0;padding:16px;max-width:none}" );addEventListener('pagehide',stop,{once:true});}
 })();

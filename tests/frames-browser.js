@@ -34,11 +34,11 @@ export async function verifyFrames(){
    const tops=[];
    try{for(let i=0;i<20;i++){
     const {image}=await decoder.decode({frameIndex:i});const c=document.createElement('canvas');c.width=c.height=128;const ctx=c.getContext('2d');ctx.drawImage(image,0,0);image.close();const d=pixels(c);let top=128;
-    for(let p=0;p<128*128;p++)if(transparent?d[p*4+3]>0:d[p*4]!==254)top=Math.min(top,Math.floor(p/128));
-    tops.push(top);check(transparent?d[3]===0:d[0]===254&&d[1]===220&&d[2]===186&&d[3]===255,'GIF background');
+    for(let p=0;p<128*128;p++)if(d[p*4]!==254)top=Math.min(top,Math.floor(p/128));
+    tops.push(top);check(d[0]===254&&d[1]===220&&d[2]===186&&d[3]===255,'GIF background');
    }}finally{decoder.close();}
    check(tops[0]-tops[10]>=18,'Whole frame bounces');
-   const d=pixels(canvas);check(transparent?d[3]===0:d[0]===254&&d[3]===255,'PNG background');
+   const d=pixels(canvas);check(d[0]===254&&d[3]===255,'GIF preview canvas background');
   }
  }
  const app=document.createElement('main');document.body.append(app);let dispose,draft;

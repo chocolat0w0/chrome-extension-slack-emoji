@@ -43,3 +43,11 @@ test('normalizes freely specified HEX colors and rejects incomplete values',asyn
  assert.equal(normalizeHex('#123456'),'#123456');
  for(const invalid of ['','#12','red','#gggggg','#12345678'])assert.equal(normalizeHex(invalid),null);
 });
+
+test('GIF always uses an opaque background while PNG honors transparency', async()=>{
+ const {effectiveTransparency}=await import('../src/editor/model.js');
+ assert.equal(effectiveTransparency('bounce',true),false);
+ assert.equal(effectiveTransparency('blink',true),false);
+ assert.equal(effectiveTransparency('none',true),true);
+ assert.equal(effectiveTransparency('none',false),false);
+});
