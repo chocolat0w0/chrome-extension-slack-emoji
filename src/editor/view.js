@@ -1,6 +1,6 @@
 import {FONT_PRESETS} from '../emoji/fonts.js';
 import {renderEmoji} from '../emoji/render.js';
-import {graphemes,validate,normalizeHex} from './model.js';
+import {graphemes,validate,normalizeHex,effectiveTransparency} from './model.js';
 export function mountEditor(app,{onGenerate=null,onDraft=()=>{},initial={}}={}) {
 let disposed=false,busy=false,reflected=false;
 app.innerHTML=`<h1>文字絵文字を作成</h1>
@@ -20,14 +20,17 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <label class="label font-label" for="frame">フレーム</label>
 <select id="frame"><option value="none">なし</option><option value="circle">丸囲み</option><option value="double-circle">二重丸</option><option value="rays">集中線</option></select>
 <label class="label font-label" for="animation">アニメーション</label>
-<select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（GIF）</option><option value="shake">ぶるぶる（GIF）</option><option value="pop">ポップ（GIF）</option><option value="blink">点滅（GIF）</option><option value="blink-fast">点滅・速い（GIF）</option></select>
+<select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（GIF）</option><option value="shake">ぶるぶる（GIF）</option><option value="pop">ポップ（GIF）</option><option value="blink">点滅（GIF）</option></select>
+<label class="label font-label" for="animationSpeed">アニメーション速度</label>
+<input id="animationSpeed" type="range" min="0" max="2" step="1" value="1" aria-valuetext="中">
+<div class="weight-labels" aria-hidden="true"><span>遅</span><span>中</span><span>速</span></div>
 <fieldset><legend class="label">色</legend>
 <div class="colors">
 <div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#3ab0c7"><input id="foregroundHex" type="text" value="#3ab0c7" aria-label="文字色のHEXコード" placeholder="#3ab0c7" spellcheck="false" autocomplete="off"></div></div>
 <div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffffff"><input id="backgroundHex" type="text" value="#ffffff" aria-label="背景色のHEXコード" placeholder="#ffffff" spellcheck="false" autocomplete="off"></div></div>
 </div>
 <div class="swatches" aria-label="文字色プリセット"></div>
-<label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label></fieldset>
+<label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label><p id="transparencyHelp" class="helper" hidden>GIFでは背景色を使用します。</p></fieldset>
 <label class="label" for="name">Slackでの名前</label>
 <input id="name" type="text" placeholder="例：arigatou" autocomplete="off">
 <p id="error" role="alert"></p>
@@ -46,19 +49,28 @@ for(const [color,label] of [['#3ab0c7','水色'],['#176b50','緑'],['#ff0000','�
  const button=document.createElement('button');button.type='button';button.style.background=color;button.title=label;button.setAttribute('aria-label',`文字色を${label}にする`);button.addEventListener('click',()=>{el('foreground').value=color;el('foregroundHex').value=color;update();});app.querySelector('.swatches').append(button);
 }
 for(const id of ['text','foreground','background','name','font','align','animation','frame'])if(initial[id]!==undefined)el(id).value=initial[id];
+if(initial.animation==='blink-fast')el('animation').value='blink';
 if(!el('frame').value)el('frame').value='none';
 if(!el('font').value)el('font').value='gothic';
 const weights=[300,500,900],weightLabels=['細','中','太'];
+const speeds=['slow','medium','fast'],speedLabels=['遅','中','速'],durations=[1.4,1,0.4];
+const speedIndex=speeds.indexOf(initial.animationSpeed??(initial.animation==='blink-fast'?'fast':'medium'));el('animationSpeed').value=String(speedIndex<0?1:speedIndex);
 const initialWeight=initial.fontWeight??(initial.font==='gothic'?500:900);
 const weightIndex=weights.indexOf(Number(initialWeight));
 el('fontWeight').value=String(weightIndex<0?2:weightIndex);
 for(const id of ['transparent','stretchVertical'])if(initial[id]!==undefined)el(id).checked=initial[id];
 for(const id of ['foreground','background'])el(id+'Hex').value=initial[id]??el(id).value;
+let preferredTransparent=el('transparent').checked;
 if(onGenerate)el('generate').textContent='登録欄に反映';
 let revision=0, editRevision=0, current=null, url=null, preferredAlign=el('align').value;
-function values(){return {frame:el('frame').value,animation:el('animation').value,stretchVertical:el('stretchVertical').checked,align:el('frame').value==='none'?el('align').value:preferredAlign,font:el('font').value,fontWeight:weights[Number(el('fontWeight').value)],text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:el('transparent').checked};}
+function values(){return {frame:el('frame').value,animation:el('animation').value,animationSpeed:speeds[Number(el('animationSpeed').value)],stretchVertical:el('stretchVertical').checked,align:el('frame').value==='none'?el('align').value:preferredAlign,font:el('font').value,fontWeight:weights[Number(el('fontWeight').value)],text:el('text').value,foreground:normalizeHex(el('foregroundHex').value)??el('foregroundHex').value,background:normalizeHex(el('backgroundHex').value)??el('backgroundHex').value,transparent:preferredTransparent};}
 async function update(){
  el('fontWeight').setAttribute('aria-valuetext',weightLabels[Number(el('fontWeight').value)]);
+ el('animationSpeed').setAttribute('aria-valuetext',speedLabels[Number(el('animationSpeed').value)]);
+ el('animationSpeed').disabled=el('animation').value==='none';
+ const isGif=el('animation').value!=='none';
+ el('transparent').checked=effectiveTransparency(el('animation').value,preferredTransparent);
+ el('transparent').disabled=isGif;el('transparencyHelp').hidden=!isGif;
  const ticket=++revision;editRevision++;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
  if(!el('align').disabled)preferredAlign=el('align').value;
  el('align').disabled=el('frame').value!=='none';
@@ -77,13 +89,14 @@ async function update(){
   const image=await renderEmoji(values());if(disposed||ticket!==revision)return;
   if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(image.blob);
   app.querySelectorAll('img').forEach(img=>img.src=url);current=image.blob;
-  el('size').textContent=`128 × 128 px · ${image.blob.type==='image/gif'?'GIF · 20コマ · 1.2秒':'PNG'} · ${image.blob.size.toLocaleString()} bytes`;
+  el('size').textContent=`128 × 128 px · ${image.blob.type==='image/gif'?`GIF · 20コマ · ${durations[Number(el('animationSpeed').value)]}秒`:'PNG'} · ${image.blob.size.toLocaleString()} bytes`;
   el('generate').disabled=busy;
  }catch(error){if(!disposed&&ticket===revision)el('error').textContent=error.message;}
  finally{if(!disposed&&ticket===revision)el('loading').textContent='';}
 }
 el('editor').addEventListener('submit',e=>e.preventDefault());
 el('editor').addEventListener('input',event=>{
+ if(event.target===el('transparent'))preferredTransparent=el('transparent').checked;
  if(event.target===el('name')){editRevision++;onDraft({...values(),name:el('name').value});if(!busy)el('result').textContent=reflected?'変更を登録欄に反映してください。':'';return;}
  for(const id of ['foreground','background']){
   if(event.target===el(id))el(id+'Hex').value=el(id).value;

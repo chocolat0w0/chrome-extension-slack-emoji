@@ -2,11 +2,12 @@ import {frameLayout,drawFrame} from './frames.js';
 import {fitText} from './layout.js';
 import {canvasFont,fontStrokeWidth} from './fonts.js';
 import {ensureWebFont} from './font-loader.js';
-import {validate} from '../editor/model.js';
+import {validate,effectiveTransparency} from '../editor/model.js';
 import {renderAnimation} from './animation.js';
-export async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic',fontWeight=900,align='center',stretchVertical=true,animation='none',frame='none'}) {
+export async function renderEmoji({text,foreground,background,transparent,font:fontId='gothic',fontWeight=900,align='center',stretchVertical=true,animation='none',animationSpeed='medium',frame='none'}) {
  const errors=validate(text); if(errors.length) throw new Error(errors.join(' '));
- if(!['none','bounce','shake','pop','blink','blink-fast'].includes(animation))throw Error('アニメーションを選び直してください。');
+ if(!['none','bounce','shake','pop','blink'].includes(animation))throw Error('アニメーションを選び直してください。');
+ transparent=effectiveTransparency(animation,transparent);
  const area=frameLayout(frame);
  await ensureWebFont(fontId,text,fontWeight);
  const canvas=document.createElement('canvas'); canvas.width=canvas.height=128;
@@ -46,7 +47,7 @@ export async function renderEmoji({text,foreground,background,transparent,font:f
  const out=output.getContext('2d');if(!out)throw new Error('Canvasを利用できません。');
  if(!transparent){out.fillStyle=background;out.fillRect(0,0,128,128);}
  out.drawImage(layer,0,0);
- const blob=animation!=='none'?renderAnimation(layer,{foreground,background,transparent,animation}):await new Promise(resolve=>output.toBlob(resolve,'image/png'));
+ const blob=animation!=='none'?renderAnimation(layer,{foreground,background,transparent,animation,speed:animationSpeed}):await new Promise(resolve=>output.toBlob(resolve,'image/png'));
  if(!blob) throw new Error('画像を生成できませんでした。');
  if(blob.size>=128000) throw new Error(animation!=='none'?'GIFが128,000バイト以上です。文字数を減らすか、背景を透明にしてください。':'画像が128,000バイト以上です。');
  return {canvas:output,blob};

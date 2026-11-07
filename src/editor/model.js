@@ -13,3 +13,5 @@ export function normalizeHex(value){
  if(/^[0-9a-f]{3}$/i.test(hex))return '#'+[...hex].map(c=>c+c).join('').toLowerCase();
  return /^[0-9a-f]{6}$/i.test(hex)?'#'+hex.toLowerCase():null;
 }
+
+export function effectiveTransparency(animation,transparent){return animation==='none'&&Boolean(transparent);}
