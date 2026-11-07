@@ -22,7 +22,7 @@ export async function verifyFrames(){
    }
    check(ink>0&&blob.type==='image/png'&&blob.size<128000,'Visible PNG');
    if(stretchVertical)check(top<=area.y+1&&bottom>=area.y+area.height-2,'Stretch fills safe area');
-   if(font.id==='gothic-bold'&&text==='確認\n済'){
+   if(font.id==='gothic'&&text==='確認\n済'){
     const figure=document.createElement('figure');figure.innerHTML=`<small>${frame} / 縦伸ばし${stretchVertical?'あり':'なし'}</small>`;figure.append(canvas);document.querySelector('#samples').append(figure);
    }
    cases++;
