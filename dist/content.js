@@ -284,39 +284,44 @@ let disposed=false,busy=false,reflected=false;
 app.innerHTML=`<h1>文字絵文字を作成</h1>
 <section class="workspace">
 <form id="editor">
-<label class="label" for="text">文字</label>
+<div class="editor-field editor-field-wide"><label class="label" for="text">文字</label>
 <textarea id="text" rows="2" aria-describedby="text-help counter">ありがとう</textarea>
 <div class="helper"><span id="text-help">4行まで・1行12文字まで</span><output id="counter"></output></div>
-<label class="label font-label" for="font">フォント</label>
+</div>
+<div class="editor-field"><label class="label" for="font">フォント</label>
 <select id="font"></select>
-<label class="label font-label" for="fontWeight">太さ</label>
+</div>
+<div class="editor-field"><label class="label" for="fontWeight">太さ</label>
 <input id="fontWeight" type="range" min="0" max="2" step="1" value="1" aria-valuetext="中">
 <div class="weight-labels" aria-hidden="true"><span>細</span><span>中</span><span>太</span></div>
-<label class="label font-label" for="align">文字揃え</label>
+</div>
+<div class="editor-field"><label class="label" for="align">文字揃え</label>
 <select id="align"><option value="center">中央</option><option value="left">左</option><option value="right">右</option></select>
-<label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばして埋める</label>
-<label class="label font-label" for="frame">フレーム</label>
+</div>
+<div class="editor-field"><label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばす</label>
+</div>
+<div class="editor-field editor-field-wide"><label class="label" for="frame">フレーム</label>
 <select id="frame"><option value="none">なし</option><option value="circle">丸囲み</option><option value="double-circle">二重丸</option><option value="rays">集中線</option></select>
-<label class="label font-label" for="animation">アニメーション</label>
+</div>
+<div class="editor-field"><label class="label" for="animation">アニメーション</label>
 <select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（GIF）</option><option value="shake">ぶるぶる（GIF）</option><option value="pop">ポップ（GIF）</option><option value="blink">点滅（GIF）</option></select>
-<label class="label font-label" for="animationSpeed">アニメーション速度</label>
+</div>
+<div class="editor-field"><label class="label" for="animationSpeed">速度</label>
 <input id="animationSpeed" type="range" min="0" max="2" step="1" value="1" aria-valuetext="中">
 <div class="weight-labels" aria-hidden="true"><span>遅</span><span>中</span><span>速</span></div>
-<fieldset><legend class="label">色</legend>
-<div class="colors">
-<div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#3ab0c7"><input id="foregroundHex" type="text" value="#3ab0c7" aria-label="文字色のHEXコード" placeholder="#3ab0c7" spellcheck="false" autocomplete="off"></div></div>
-<div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffffff"><input id="backgroundHex" type="text" value="#ffffff" aria-label="背景色のHEXコード" placeholder="#ffffff" spellcheck="false" autocomplete="off"></div></div>
 </div>
-<div class="swatches" aria-label="文字色プリセット"></div>
-<label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label></fieldset>
-<label class="label" for="name">Slackでの名前</label>
-<input id="name" type="text" placeholder="例：arigatou" autocomplete="off">
-<p id="error" role="alert"></p>
+<fieldset class="editor-field-wide"><legend class="label">色</legend>
+<div class="color-row"><div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#3ab0c7"><input id="foregroundHex" type="text" value="#3ab0c7" aria-label="文字色のHEXコード" placeholder="#3ab0c7" spellcheck="false" autocomplete="off"></div></div><div class="swatches" aria-label="文字色プリセット"></div></div>
+<div class="color-row"><div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffffff"><input id="backgroundHex" type="text" value="#ffffff" aria-label="背景色のHEXコード" placeholder="#ffffff" spellcheck="false" autocomplete="off"></div></div><label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label></div>
+</fieldset>
+<p id="error" class="editor-field-wide" role="alert"></p>
 </form>
 <aside class="preview">
 <div class="samples"><div><span>明</span><div class="sample light"><img alt="明るい背景での絵文字"></div></div><div><span>暗</span><div class="sample dark"><img alt="暗い背景での絵文字"></div></div></div>
 <p id="loading" class="helper" role="status"></p>
 <p id="size" class="helper" aria-live="polite"></p>
+<label class="label" for="name">Slackでの名前</label>
+<input id="name" type="text" form="editor" placeholder="例：arigatou" autocomplete="off">
 <button id="generate" type="button">PNGを生成</button>
 <output id="result" aria-live="polite"></output>
 </aside></section>`;
@@ -373,7 +378,7 @@ async function update(){
  finally{if(!disposed&&ticket===revision)el('loading').textContent='';}
 }
 el('editor').addEventListener('submit',e=>e.preventDefault());
-el('editor').addEventListener('input',event=>{
+app.addEventListener('input',event=>{
  if(event.target===el('transparent'))preferredTransparent=el('transparent').checked;
  if(event.target===el('name')){editRevision++;onDraft({...values(),name:el('name').value});if(!busy)el('result').textContent=reflected?'変更を登録欄に反映してください。':'';return;}
  for(const id of ['foreground','background']){
@@ -437,16 +442,25 @@ async function transferEmoji(target,file,name,{scope=document,timeout=3500}={}) 
 }
 
 function startIntegration(scope=document,styles='') {
- let host=null,dispose=null,activeBody=null,restoreBody=null,draft={},scheduled=false;
- const clear=()=>{dispose?.();dispose=null;host?.remove();host=null;restoreBody?.();restoreBody=null;activeBody=null;};
+ let host=null,dispose=null,activeBody=null,restoreBody=null,layoutStyle=null,draft={},scheduled=false;
+ const clear=()=>{dispose?.();dispose=null;host?.remove();host=null;restoreBody?.();restoreBody=null;layoutStyle?.remove();layoutStyle=null;activeBody=null;};
  const sync=()=>{
   scheduled=false;const form=findSlackForm(scope);
   if(form?.body===activeBody&&host?.isConnected)return;
   clear();if(!form)return;
   activeBody=form.body;
+  const content=form.body.firstElementChild;
+  const wide=form.body.children.length===1&&(content===form.file.form||(content?.matches('[data-qa="customize_emoji_add_dialog_message"]')&&content.contains(form.file.form)));
+  const scroll=form.body.closest('.c-scrollbar__child');
+  if(wide){
+   form.body.setAttribute('data-slack-emoji-layout','');form.dialog.setAttribute('data-slack-emoji-wide','');
+   if(scroll&&form.dialog.contains(scroll))scroll.setAttribute('data-slack-emoji-scroll','');
+   layoutStyle=document.createElement('style');layoutStyle.textContent=`@media (min-width: 1000px){[data-slack-emoji-wide]{width:min(1000px,calc(100vw - 48px))!important;max-width:calc(100vw - 48px)!important}[data-slack-emoji-scroll]{width:100%!important;max-width:100%;min-width:0;box-sizing:border-box}.c-scrollbar__hider>[data-slack-emoji-scroll]{width:calc(100% - 50px)!important}[data-slack-emoji-layout]{display:grid!important;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;align-items:start;min-width:0;max-width:100%;box-sizing:border-box}[data-slack-emoji-layout]>*{min-width:0;max-width:100%;box-sizing:border-box}[data-slack-emoji-layout]>[data-slack-emoji-editor]{margin:0}[data-slack-emoji-layout]>[data-qa="customize_emoji_add_dialog_message"]{overflow-wrap:anywhere}[data-slack-emoji-layout] .p-add_custom_emoji_dialog__upload_container{flex-wrap:wrap}[data-slack-emoji-layout] input[type="text"]{max-width:100%;box-sizing:border-box}}`;
+   document.head.append(layoutStyle);
+  }
   const properties=['max-height','overflow-x','overflow-y'];
   const previous=properties.map(p=>[p,form.body.style.getPropertyValue(p),form.body.style.getPropertyPriority(p)]);
-  restoreBody=()=>{for(const [p,value,priority] of previous){if(value)form.body.style.setProperty(p,value,priority);else form.body.style.removeProperty(p);}};
+  restoreBody=()=>{if(wide){form.body.removeAttribute('data-slack-emoji-layout');form.dialog.removeAttribute('data-slack-emoji-wide');scroll?.removeAttribute('data-slack-emoji-scroll');}for(const [p,value,priority] of previous){if(value)form.body.style.setProperty(p,value,priority);else form.body.style.removeProperty(p);}};
   form.body.style.setProperty('max-height','65vh');form.body.style.setProperty('overflow-x','auto');form.body.style.setProperty('overflow-y','auto');
   host=document.createElement('div');host.dataset.slackEmojiEditor='';
   const root=host.attachShadow({mode:'open'}),style=document.createElement('style');style.textContent=styles;
@@ -458,5 +472,5 @@ function startIntegration(scope=document,styles='') {
  const stop=()=>{observer.disconnect();clear();};return stop;
 }
 
-if(/^\/customize\/emoji\/?$/.test(location.pathname)){const stop=startIntegration(document,":root{font-family:\"Hiragino Kaku Gothic ProN\",\"Yu Gothic\",sans-serif;color:#26352f;background:#f7f7f4;font-size:13px}*{box-sizing:border-box}body{margin:0}main{max-width:560px;padding:20px;margin:0 auto}h1{font-size:16px;margin:0 0 16px;font-weight:600}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:24px;align-items:start}.label{display:block;font-weight:600;font-size:12px;margin-bottom:6px}textarea,input[type=text],select{font:inherit;width:100%;border:1px solid #b9c1bb;border-radius:4px;padding:7px 9px;background:#fff;color:inherit}textarea{resize:vertical;min-height:58px;font-size:16px;line-height:1.4}textarea:focus,input:focus,select:focus,button:focus-visible{outline:2px solid #176b50;outline-offset:2px}.helper{font-size:10px;color:#68746c;line-height:1.6}.helper:has(span){display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px}.helper output{white-space:nowrap}fieldset{border:0;padding:0;margin:16px 0}.colors{display:flex;gap:16px}.colors label{display:flex;align-items:center;gap:6px;font-size:12px}input[type=color]{width:30px;height:28px;padding:2px;border:1px solid #b9c1bb;background:none;cursor:pointer}.swatches{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.swatches button{flex:0 0 20px;width:20px;height:20px;border:1px solid #bbc2ba;border-radius:50%;cursor:pointer}.check{font-size:12px;display:flex;align-items:center;gap:6px}input[type=checkbox]{accent-color:#176b50}#error{font-size:11px;color:#aa3128;margin:8px 0}#error:empty{display:none}img:not([src]){visibility:hidden}.samples{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.samples>div>span{font-size:10px;color:#68746c}.sample{margin-top:3px;aspect-ratio:1}.light{background:white;outline:1px solid #e0e3dd}.dark{background:#24282d}.sample img{display:block;width:100%;height:100%}#size{margin:8px 0}#generate{width:100%;border:0;border-radius:4px;background:#176b50;color:white;padding:9px;font:inherit;cursor:pointer}#generate:disabled{opacity:.4;cursor:default}#result{display:block;font-size:11px;line-height:1.6;margin-top:8px;overflow-wrap:anywhere}@media(max-width:400px){main{padding:12px}.workspace{grid-template-columns:minmax(0,1fr) 110px;gap:12px}}\n\n.font-label{margin-top:12px}select{font-size:12px;padding:7px 9px}\n\n.stretch-option{margin-top:10px}\n\n.colors{flex-wrap:wrap;gap:10px}.color-control{flex:1;min-width:112px}.color-control>label{display:block;margin-bottom:4px;font-size:12px}.color-fields{display:flex;align-items:center;gap:5px}.color-fields input[type=text]{width:90px;min-width:0;padding:5px;font:12px ui-monospace,monospace}.color-fields input[type=color]{flex-shrink:0}input[aria-invalid=true]{border-color:#aa3128}input:disabled{opacity:.5}\n\n#fontWeight,#animationSpeed{width:100%;margin:0;accent-color:#176b50}.weight-labels{display:flex;justify-content:space-between;font-size:11px;color:#68746c;margin-top:2px}\n\n:host{display:block;color:#26352f;font:13px \"Hiragino Kaku Gothic ProN\",sans-serif;background:#f7f7f4;border:1px solid #d4d9d4;border-radius:4px;margin:12px 0}main{margin:0;padding:16px;max-width:none}" );addEventListener('pagehide',stop,{once:true});}
+if(/^\/customize\/emoji\/?$/.test(location.pathname)){const stop=startIntegration(document,":root{font-family:\"Hiragino Kaku Gothic ProN\",\"Yu Gothic\",sans-serif;color:#26352f;background:#f7f7f4;font-size:13px}*{box-sizing:border-box}body{margin:0}main{max-width:560px;padding:20px;margin:0 auto}h1{font-size:16px;margin:0 0 16px;font-weight:600}.workspace{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:24px;align-items:start}.label{display:block;font-weight:600;font-size:12px;margin-bottom:6px}textarea,input[type=text],select{font:inherit;width:100%;border:1px solid #b9c1bb;border-radius:4px;padding:7px 9px;background:#fff;color:inherit}textarea{resize:vertical;min-height:58px;font-size:16px;line-height:1.4}textarea:focus,input:focus,select:focus,button:focus-visible{outline:2px solid #176b50;outline-offset:2px}.helper{font-size:10px;color:#68746c;line-height:1.6}.helper:has(span){display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px}.helper output{white-space:nowrap}fieldset{border:0;padding:0;margin:16px 0}.colors{display:flex;gap:16px}.colors label{display:flex;align-items:center;gap:6px;font-size:12px}input[type=color]{width:30px;height:28px;padding:2px;border:1px solid #b9c1bb;background:none;cursor:pointer}.swatches{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.swatches button{flex:0 0 20px;width:20px;height:20px;border:1px solid #bbc2ba;border-radius:50%;cursor:pointer}.check{font-size:12px;display:flex;align-items:center;gap:6px}input[type=checkbox]{accent-color:#176b50}#error{font-size:11px;color:#aa3128;margin:8px 0}#error:empty{display:none}img:not([src]){visibility:hidden}.samples{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.samples>div>span{font-size:10px;color:#68746c}.sample{margin-top:3px;aspect-ratio:1}.light{background:white;outline:1px solid #e0e3dd}.dark{background:#24282d}.sample img{display:block;width:100%;height:100%}#size{margin:8px 0}#generate{width:100%;border:0;border-radius:4px;background:#176b50;color:white;padding:9px;font:inherit;cursor:pointer}#generate:disabled{opacity:.4;cursor:default}#result{display:block;font-size:11px;line-height:1.6;margin-top:8px;overflow-wrap:anywhere}@media(max-width:400px){main{padding:12px}.workspace{grid-template-columns:minmax(0,1fr) 110px;gap:12px}}\n\n.font-label{margin-top:12px}select{font-size:12px;padding:7px 9px}\n\n.stretch-option{margin-top:10px}\n\n.colors{flex-wrap:wrap;gap:10px}.color-control{flex:1;min-width:112px}.color-control>label{display:block;margin-bottom:4px;font-size:12px}.color-fields{display:flex;align-items:center;gap:5px}.color-fields input[type=text]{width:90px;min-width:0;padding:5px;font:12px ui-monospace,monospace}.color-fields input[type=color]{flex-shrink:0}input[aria-invalid=true]{border-color:#aa3128}input:disabled{opacity:.5}\n\n#fontWeight,#animationSpeed{width:100%;margin:0;accent-color:#176b50}.weight-labels{display:flex;justify-content:space-between;font-size:11px;color:#68746c;margin-top:2px}\n\n#editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px;row-gap:10px;align-items:start}.editor-field{min-width:0}.editor-field-wide{grid-column:1/-1}#editor fieldset{min-width:0;margin:0}.stretch-option{margin-top:23px}.workspace{gap:14px}main{padding:14px}h1{margin-bottom:12px}@media(max-width:400px){#editor{column-gap:8px}main{padding:10px}}\n\n.color-row{display:flex;gap:10px;align-items:end;margin-bottom:8px}.color-row .color-control{flex:0 1 126px;min-width:0}.color-row .swatches{flex:1;min-width:0;margin:0;gap:5px}.color-row .check{flex:1;min-width:0;align-self:center}.color-row .check input{flex-shrink:0}.preview #name{margin-bottom:10px}.preview{min-width:0}\n\n:host{display:block;color:#26352f;font:13px \"Hiragino Kaku Gothic ProN\",sans-serif;background:#f7f7f4;border:1px solid #d4d9d4;border-radius:4px;margin:12px 0}main{margin:0;padding:16px;max-width:none}" );addEventListener('pagehide',stop,{once:true});}
 })();

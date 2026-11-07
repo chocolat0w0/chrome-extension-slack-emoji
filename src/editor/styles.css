@@ -7,3 +7,7 @@
 .colors{flex-wrap:wrap;gap:10px}.color-control{flex:1;min-width:112px}.color-control>label{display:block;margin-bottom:4px;font-size:12px}.color-fields{display:flex;align-items:center;gap:5px}.color-fields input[type=text]{width:90px;min-width:0;padding:5px;font:12px ui-monospace,monospace}.color-fields input[type=color]{flex-shrink:0}input[aria-invalid=true]{border-color:#aa3128}input:disabled{opacity:.5}
 
 #fontWeight,#animationSpeed{width:100%;margin:0;accent-color:#176b50}.weight-labels{display:flex;justify-content:space-between;font-size:11px;color:#68746c;margin-top:2px}
+
+#editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px;row-gap:10px;align-items:start}.editor-field{min-width:0}.editor-field-wide{grid-column:1/-1}#editor fieldset{min-width:0;margin:0}.stretch-option{margin-top:23px}.workspace{gap:14px}main{padding:14px}h1{margin-bottom:12px}@media(max-width:400px){#editor{column-gap:8px}main{padding:10px}}
+
+.color-row{display:flex;gap:10px;align-items:end;margin-bottom:8px}.color-row .color-control{flex:0 1 126px;min-width:0}.color-row .swatches{flex:1;min-width:0;margin:0;gap:5px}.color-row .check{flex:1;min-width:0;align-self:center}.color-row .check input{flex-shrink:0}.preview #name{margin-bottom:10px}.preview{min-width:0}
