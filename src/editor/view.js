@@ -6,39 +6,44 @@ let disposed=false,busy=false,reflected=false;
 app.innerHTML=`<h1>文字絵文字を作成</h1>
 <section class="workspace">
 <form id="editor">
-<label class="label" for="text">文字</label>
+<div class="editor-field editor-field-wide"><label class="label" for="text">文字</label>
 <textarea id="text" rows="2" aria-describedby="text-help counter">ありがとう</textarea>
 <div class="helper"><span id="text-help">4行まで・1行12文字まで</span><output id="counter"></output></div>
-<label class="label font-label" for="font">フォント</label>
+</div>
+<div class="editor-field"><label class="label" for="font">フォント</label>
 <select id="font"></select>
-<label class="label font-label" for="fontWeight">太さ</label>
+</div>
+<div class="editor-field"><label class="label" for="fontWeight">太さ</label>
 <input id="fontWeight" type="range" min="0" max="2" step="1" value="1" aria-valuetext="中">
 <div class="weight-labels" aria-hidden="true"><span>細</span><span>中</span><span>太</span></div>
-<label class="label font-label" for="align">文字揃え</label>
+</div>
+<div class="editor-field"><label class="label" for="align">文字揃え</label>
 <select id="align"><option value="center">中央</option><option value="left">左</option><option value="right">右</option></select>
-<label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばして埋める</label>
-<label class="label font-label" for="frame">フレーム</label>
+</div>
+<div class="editor-field"><label class="check stretch-option"><input id="stretchVertical" type="checkbox" checked>縦に伸ばす</label>
+</div>
+<div class="editor-field editor-field-wide"><label class="label" for="frame">フレーム</label>
 <select id="frame"><option value="none">なし</option><option value="circle">丸囲み</option><option value="double-circle">二重丸</option><option value="rays">集中線</option></select>
-<label class="label font-label" for="animation">アニメーション</label>
+</div>
+<div class="editor-field"><label class="label" for="animation">アニメーション</label>
 <select id="animation"><option value="none">なし（PNG）</option><option value="bounce">バウンド（GIF）</option><option value="shake">ぶるぶる（GIF）</option><option value="pop">ポップ（GIF）</option><option value="blink">点滅（GIF）</option></select>
-<label class="label font-label" for="animationSpeed">アニメーション速度</label>
+</div>
+<div class="editor-field"><label class="label" for="animationSpeed">速度</label>
 <input id="animationSpeed" type="range" min="0" max="2" step="1" value="1" aria-valuetext="中">
 <div class="weight-labels" aria-hidden="true"><span>遅</span><span>中</span><span>速</span></div>
-<fieldset><legend class="label">色</legend>
-<div class="colors">
-<div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#3ab0c7"><input id="foregroundHex" type="text" value="#3ab0c7" aria-label="文字色のHEXコード" placeholder="#3ab0c7" spellcheck="false" autocomplete="off"></div></div>
-<div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffffff"><input id="backgroundHex" type="text" value="#ffffff" aria-label="背景色のHEXコード" placeholder="#ffffff" spellcheck="false" autocomplete="off"></div></div>
 </div>
-<div class="swatches" aria-label="文字色プリセット"></div>
-<label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label></fieldset>
-<label class="label" for="name">Slackでの名前</label>
-<input id="name" type="text" placeholder="例：arigatou" autocomplete="off">
-<p id="error" role="alert"></p>
+<fieldset class="editor-field-wide"><legend class="label">色</legend>
+<div class="color-row"><div class="color-control"><label for="foreground">文字色</label><div class="color-fields"><input id="foreground" type="color" value="#3ab0c7"><input id="foregroundHex" type="text" value="#3ab0c7" aria-label="文字色のHEXコード" placeholder="#3ab0c7" spellcheck="false" autocomplete="off"></div></div><div class="swatches" aria-label="文字色プリセット"></div></div>
+<div class="color-row"><div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffffff"><input id="backgroundHex" type="text" value="#ffffff" aria-label="背景色のHEXコード" placeholder="#ffffff" spellcheck="false" autocomplete="off"></div></div><label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label></div>
+</fieldset>
+<p id="error" class="editor-field-wide" role="alert"></p>
 </form>
 <aside class="preview">
 <div class="samples"><div><span>明</span><div class="sample light"><img alt="明るい背景での絵文字"></div></div><div><span>暗</span><div class="sample dark"><img alt="暗い背景での絵文字"></div></div></div>
 <p id="loading" class="helper" role="status"></p>
 <p id="size" class="helper" aria-live="polite"></p>
+<label class="label" for="name">Slackでの名前</label>
+<input id="name" type="text" form="editor" placeholder="例：arigatou" autocomplete="off">
 <button id="generate" type="button">PNGを生成</button>
 <output id="result" aria-live="polite"></output>
 </aside></section>`;
@@ -95,7 +100,7 @@ async function update(){
  finally{if(!disposed&&ticket===revision)el('loading').textContent='';}
 }
 el('editor').addEventListener('submit',e=>e.preventDefault());
-el('editor').addEventListener('input',event=>{
+app.addEventListener('input',event=>{
  if(event.target===el('transparent'))preferredTransparent=el('transparent').checked;
  if(event.target===el('name')){editRevision++;onDraft({...values(),name:el('name').value});if(!busy)el('result').textContent=reflected?'変更を登録欄に反映してください。':'';return;}
  for(const id of ['foreground','background']){
