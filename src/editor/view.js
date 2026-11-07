@@ -12,7 +12,7 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <label class="label font-label" for="font">フォント</label>
 <select id="font"></select>
 <label class="label font-label" for="fontWeight">太さ</label>
-<input id="fontWeight" type="range" min="0" max="2" step="1" value="2" aria-valuetext="太">
+<input id="fontWeight" type="range" min="0" max="2" step="1" value="1" aria-valuetext="中">
 <div class="weight-labels" aria-hidden="true"><span>細</span><span>中</span><span>太</span></div>
 <label class="label font-label" for="align">文字揃え</label>
 <select id="align"><option value="center">中央</option><option value="left">左</option><option value="right">右</option></select>
@@ -30,7 +30,7 @@ app.innerHTML=`<h1>文字絵文字を作成</h1>
 <div class="color-control"><label for="background">背景色</label><div class="color-fields"><input id="background" type="color" value="#ffffff"><input id="backgroundHex" type="text" value="#ffffff" aria-label="背景色のHEXコード" placeholder="#ffffff" spellcheck="false" autocomplete="off"></div></div>
 </div>
 <div class="swatches" aria-label="文字色プリセット"></div>
-<label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label><p id="transparencyHelp" class="helper" hidden>GIFでは背景色を使用します。</p></fieldset>
+<label class="check"><input id="transparent" type="checkbox" checked>背景を透明にする</label></fieldset>
 <label class="label" for="name">Slackでの名前</label>
 <input id="name" type="text" placeholder="例：arigatou" autocomplete="off">
 <p id="error" role="alert"></p>
@@ -55,9 +55,9 @@ if(!el('font').value)el('font').value='gothic';
 const weights=[300,500,900],weightLabels=['細','中','太'];
 const speeds=['slow','medium','fast'],speedLabels=['遅','中','速'],durations=[1.4,1,0.4];
 const speedIndex=speeds.indexOf(initial.animationSpeed??(initial.animation==='blink-fast'?'fast':'medium'));el('animationSpeed').value=String(speedIndex<0?1:speedIndex);
-const initialWeight=initial.fontWeight??(initial.font==='gothic'?500:900);
+const initialWeight=initial.fontWeight??(['gothic-bold','mincho','rounded'].includes(initial.font)?900:500);
 const weightIndex=weights.indexOf(Number(initialWeight));
-el('fontWeight').value=String(weightIndex<0?2:weightIndex);
+el('fontWeight').value=String(weightIndex<0?1:weightIndex);
 for(const id of ['transparent','stretchVertical'])if(initial[id]!==undefined)el(id).checked=initial[id];
 for(const id of ['foreground','background'])el(id+'Hex').value=initial[id]??el(id).value;
 let preferredTransparent=el('transparent').checked;
@@ -70,7 +70,7 @@ async function update(){
  el('animationSpeed').disabled=el('animation').value==='none';
  const isGif=el('animation').value!=='none';
  el('transparent').checked=effectiveTransparency(el('animation').value,preferredTransparent);
- el('transparent').disabled=isGif;el('transparencyHelp').hidden=!isGif;
+ el('transparent').disabled=isGif;
  const ticket=++revision;editRevision++;current=null;el('generate').disabled=true;el('result').textContent=reflected?'変更を登録欄に反映してください。':'';
  if(!el('align').disabled)preferredAlign=el('align').value;
  el('align').disabled=el('frame').value!=='none';

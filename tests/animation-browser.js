@@ -62,6 +62,7 @@ export async function verifyAnimation(){
   let draft,file;dispose=mountEditor(area,{initial:{name:'bounce_test'},onDraft:value=>draft=value});const el=id=>area.querySelector('#'+id);
   await until(()=>!el('generate').disabled);check(el('background').value==='#ffffff'&&el('transparent').checked&&el('background').disabled,'Transparent default background');
   check(el('animationSpeed').disabled&&draft.animationSpeed==='medium','Default speed disabled for PNG');
+  check(el('fontWeight').value==='1'&&draft.fontWeight===500,'Default font weight is medium');
   area.addEventListener('emoji-generated',e=>file=e.detail.file);
   el('animation').value='bounce';el('animation').dispatchEvent(new Event('input',{bubbles:true}));await until(()=>!el('generate').disabled);
   check(draft.animation==='bounce'&&!el('animationSpeed').disabled&&el('generate').textContent==='GIFを生成','Animation draft/button');
